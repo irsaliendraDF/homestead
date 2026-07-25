@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useProject } from '../store/useProject.js'
 import { useEditor } from '../store/useEditor.js'
 import { resolveWalls, overlappingRoomIds, roomPolygon } from '../lib/geometry.js'
+import OpeningsLayer from './OpeningsLayer.jsx'
 import { COLOR } from '../tokens.js'
 
 // Renders, in world inches, inside the canvas transform group:
@@ -127,6 +128,9 @@ export default function RoomsLayer({ zoom, plot }) {
       {wallPreview && (
         <line x1={wallPreview.x1} y1={wallPreview.y1} x2={wallPreview.x2} y2={wallPreview.y2} stroke={COLOR.accent} strokeWidth={4} strokeLinecap="square" strokeDasharray="8 6" style={{ pointerEvents: 'none' }} />
       )}
+
+      {/* Openings (mask walls + architectural symbols). */}
+      <OpeningsLayer />
 
       {/* Overlap outlines. */}
       <g style={{ pointerEvents: 'none' }}>

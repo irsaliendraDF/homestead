@@ -87,8 +87,17 @@ export function migrateProject(project) {
       rooms: (l.rooms || []).map(migrateRoom),
       walls: l.walls || [],
       mergedPairs: l.mergedPairs || [],
+      openings: l.openings || [],
     })),
   }
+}
+
+// Default size (inches) per opening type.
+export function openingDefaults(type) {
+  if (type === 'window') return { ...DEFAULTS.WINDOW }
+  if (type === 'garage') return { widthIn: 9 * 12, heightIn: 7 * 12, sillHeightIn: 0 }
+  if (type === 'archway') return { widthIn: 48, heightIn: 84, sillHeightIn: 0 }
+  return { ...DEFAULTS.DOOR, sillHeightIn: 0 } // door
 }
 
 const mergeKey = (a, b) => [a, b].sort().join('|')
@@ -260,6 +269,68 @@ export const useProject = create(
                 rooms: l.rooms.filter((r) => r.id !== roomId),
                 // drop any join that referenced the deleted room
                 mergedPairs: (l.mergedPairs || []).filter((k) => !k.split('|').includes(roomId)),
+                // drop openings hosted on the deleted room
+                openings: (l.openings || []).filter((o) => o.roomId !== roomId),
+              })),
+            }),
+          }
+        }),
+
+      // ── Openings (doors / windows / archways / garage) ──
+      addOpening: ({ type, host, offsetIn, ...size }) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          const d = openingDefaults(type)
+          const opening = {
+            id: uid(),
+            type,
+            kind: host.kind,
+            roomId: host.roomId,
+            edgeIndex: host.edgeIndex,
+            wallId: host.wallId,
+            offsetIn: Math.round(offsetIn),
+            widthIn: Math.round(size.widthIn ?? d.widthIn),
+            heightIn: Math.round(size.heightIn ?? d.heightIn),
+            sillHeightIn: Math.round(size.sillHeightIn ?? d.sillHeightIn),
+          }
+          return {
+            project: touch(s.project, {
+              levels: mapLevel(s.project.levels, levelId, (l) => ({
+                ...l,
+                openings: [...(l.openings || []), opening],
+              })),
+            }),
+            _lastOpeningId: opening.id,
+          }
+        }),
+
+      updateOpening: (openingId, patch) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          const clean = {}
+          for (const [k, v] of Object.entries(patch)) {
+            clean[k] = ['offsetIn', 'widthIn', 'heightIn', 'sillHeightIn'].includes(k) ? Math.round(v) : v
+          }
+          // Switching type resets size unless explicit sizes are provided.
+          if (patch.type && !('widthIn' in patch)) Object.assign(clean, openingDefaults(patch.type))
+          return {
+            project: touch(s.project, {
+              levels: mapLevel(s.project.levels, levelId, (l) => ({
+                ...l,
+                openings: (l.openings || []).map((o) => (o.id === openingId ? { ...o, ...clean } : o)),
+              })),
+            }),
+          }
+        }),
+
+      removeOpening: (openingId) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          return {
+            project: touch(s.project, {
+              levels: mapLevel(s.project.levels, levelId, (l) => ({
+                ...l,
+                openings: (l.openings || []).filter((o) => o.id !== openingId),
               })),
             }),
           }
@@ -345,6 +416,7 @@ export const useProject = create(
               levels: mapLevel(s.project.levels, levelId, (l) => ({
                 ...l,
                 walls: (l.walls || []).filter((w) => w.id !== wallId),
+                openings: (l.openings || []).filter((o) => o.wallId !== wallId),
               })),
             }),
           }

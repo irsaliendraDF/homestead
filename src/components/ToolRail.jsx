@@ -1,11 +1,13 @@
-import { MousePointer2, SquarePlus, Minus } from 'lucide-react'
+import { MousePointer2, SquarePlus, Minus, DoorOpen, AppWindow } from 'lucide-react'
 import { useEditor } from '../store/useEditor.js'
 
-// Left tool rail. Phase 2: Select, Room, Wall. Grows each phase.
+// Left tool rail. Grows each phase.
 const TOOLS = [
   { id: 'select', label: 'Select', hint: 'V or Esc', Icon: MousePointer2 },
   { id: 'room', label: 'Room', hint: 'R', Icon: SquarePlus },
   { id: 'wall', label: 'Wall', hint: 'drag H or V', Icon: Minus },
+  { id: 'door', label: 'Door', hint: 'D · click a wall', Icon: DoorOpen },
+  { id: 'window', label: 'Window', hint: 'W · click a wall', Icon: AppWindow },
 ]
 
 export default function ToolRail() {

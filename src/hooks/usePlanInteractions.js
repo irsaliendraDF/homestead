@@ -1,10 +1,11 @@
 import { useRef } from 'react'
-import { useProject } from '../store/useProject.js'
+import { useProject, openingDefaults } from '../store/useProject.js'
 import { useViewport } from '../store/useViewport.js'
 import { useEditor } from '../store/useEditor.js'
 import { screenToWorld } from '../lib/viewport.js'
 import { snapCandidates, snapAxis } from '../lib/snapping.js'
 import { roomPolygon, carveCorner, cleanPolygon } from '../lib/geometry.js'
+import { nearestWallHost, hostSegment, clampOffset } from '../lib/openings.js'
 
 // Pointer interaction for the plan canvas. Everything stays RECTILINEAR (no
 // diagonal walls):
@@ -52,6 +53,18 @@ export function usePlanInteractions(svgRef, spaceRef) {
       svgRef.current.setPointerCapture(e.pointerId)
       return
     }
+    if (tool === 'door' || tool === 'window') {
+      // Click a wall to drop an opening on it.
+      const level = activeLevel()
+      const width = openingDefaults(tool).widthIn
+      const host = nearestWallHost(start, level, 14 / useViewport.getState().zoom, width)
+      if (host) {
+        useProject.getState().addOpening({ type: tool, host: host.host, offsetIn: host.offset })
+        useEditor.getState().setTool('select')
+        useEditor.getState().selectOpening(useProject.getState()._lastOpeningId)
+      }
+      return
+    }
 
     const el = e.target
     const roomId = el.getAttribute?.('data-room-id')
@@ -59,7 +72,16 @@ export function usePlanInteractions(svgRef, spaceRef) {
     const edge = el.getAttribute?.('data-edge')
     const wallId = el.getAttribute?.('data-wall-id')
     const wallEnd = el.getAttribute?.('data-wall-end')
+    const openingId = el.getAttribute?.('data-opening-id')
     const level = activeLevel()
+
+    if (openingId) {
+      const opening = level.openings.find((o) => o.id === openingId)
+      useEditor.getState().selectOpening(openingId)
+      it.current = { mode: 'opening', openingId, orig: { ...opening }, start }
+      svgRef.current.setPointerCapture(e.pointerId)
+      return
+    }
 
     if (wallId && wallEnd != null) {
       const wall = level.walls.find((w) => w.id === wallId)
@@ -203,6 +225,18 @@ export function usePlanInteractions(svgRef, spaceRef) {
       return
     }
 
+    if (cur.mode === 'opening') {
+      // Slide the opening along its host wall; keep it centered under the cursor.
+      const level = activeLevel()
+      const s = hostSegment(cur.orig, level)
+      if (s) {
+        const param = (p.x - s.x1) * s.dx + (p.y - s.y1) * s.dy
+        const offsetIn = clampOffset(param - cur.orig.widthIn / 2, cur.orig.widthIn, s.len)
+        useEditor.getState().setOpeningPreview({ id: cur.openingId, offsetIn })
+      }
+      return
+    }
+
     if (cur.mode === 'wall-end') {
       // Drag one endpoint along the wall's own axis (change its length).
       const o = cur.orig
@@ -239,8 +273,15 @@ export function usePlanInteractions(svgRef, spaceRef) {
 
     const preview = useEditor.getState().preview
     const wallPreview = useEditor.getState().wallPreview
+    const openingPreview = useEditor.getState().openingPreview
     useEditor.getState().clearPreview()
     useEditor.getState().clearWallPreview()
+    useEditor.getState().clearOpeningPreview()
+
+    if (cur.mode === 'opening') {
+      if (openingPreview) useProject.getState().updateOpening(cur.openingId, { offsetIn: openingPreview.offsetIn })
+      return
+    }
 
     if (cur.mode === 'draw') {
       const bb = preview ? bounds(preview.points) : null

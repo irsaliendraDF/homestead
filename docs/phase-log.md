@@ -189,3 +189,32 @@ divider — no way to join them. Fixes:
 **Scope guard:** solid walls only — no doors/windows (Phase 4), no roof (Phase 7), no furniture.
 
 **Not merged to `main`** — pending Irene's look at the 3D on the phase-3 preview.
+
+Phase 3 confirmed by Irene ("looks great"); merged to `main`.
+
+## Phase 4 — openings — 2026-07-25 — branch `phase-4`
+
+**Delivered**
+- Openings (door / window / archway / garage) hosted on a room edge OR a freestanding wall
+  (`{ kind, roomId, edgeIndex | wallId, offsetIn, widthIn, heightIn, sillHeightIn, type }` in
+  `level.openings`). Stored relative to the host so moving/reshaping carries them. Note: the
+  §2 model's `wall:'n'|'e'|'s'|'w'` was generalized to `edgeIndex` for polygon rooms.
+- Door + Window tools (keys D / W): click a wall to drop an opening; it snaps to the nearest
+  hostable wall. Select + drag to slide it along the wall (clamped to the wall extent − 4").
+- 2D: architectural symbols masking the wall poché — door swing arc + leaf (swings into the
+  room via interior-normal test), window doubled line, archway dashed break, garage panel ticks.
+- 3D: each wall is segmented into solid boxes AROUND its openings (`wallSpans`) — piers + sill
+  box + header box, no CSG. Openings on a shared wall render once (they cut the single shared
+  box). Correct sill/head heights.
+- Inspector: type dropdown, width/height, sill (windows), delete. Del key removes openings.
+  Deleting a room/wall removes its openings.
+- `src/lib/openings.js` (pure) + `verify-phase4.mjs`: world segment, sill rules, clamp,
+  segmentation counts (window → 2 piers + sill + header; door → no sill), host-move carries
+  opening, click-to-host. All PASS.
+
+**Acceptance:** window shows a hole in 3D with correct sill/head ✓ (segmentation test); drag
+past wall end clamps ✓; moving parent room carries openings ✓. Build clean.
+
+**Scope guard:** voids + simple reveals only — no glass materials, frames, or hardware.
+
+**Not merged to `main`** — pending Irene's look at openings (2D symbols + 3D holes) on preview.

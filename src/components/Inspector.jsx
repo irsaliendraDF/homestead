@@ -24,6 +24,7 @@ export default function Inspector() {
 
   const selectedId = useEditor((s) => s.selectedId)
   const selectedWallId = useEditor((s) => s.selectedWallId)
+  const selectedOpeningId = useEditor((s) => s.selectedOpeningId)
   const active = project.levels.find((l) => l.id === project.view.activeLevelId)
   const isBasement = active && active.index < 0
   const rooms = active ? active.rooms : []
@@ -32,6 +33,7 @@ export default function Inspector() {
   const mergedSet = new Set(mergedList)
   const overlapping = room ? overlappingRoomIds(rooms, mergedSet).has(room.id) : false
   const wall = active ? (active.walls || []).find((w) => w.id === selectedWallId) : null
+  const opening = active ? (active.openings || []).find((o) => o.id === selectedOpeningId) : null
 
   // Rooms that share a wall with the selected room, and whether they're joined.
   const neighbors = room
@@ -43,8 +45,52 @@ export default function Inspector() {
         .filter((n) => n.room)
     : []
 
+  const OPENING_TYPES = ['door', 'window', 'archway', 'garage']
+
   return (
     <div className="flex h-full flex-col overflow-y-auto">
+      {/* Selected opening */}
+      {opening && (
+        <Section title="Opening">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-muted">Type</span>
+            <select
+              value={opening.type}
+              onChange={(e) => useProject.getState().updateOpening(opening.id, { type: e.target.value })}
+              className="w-full rounded border border-line bg-canvas px-2 py-1 text-sm capitalize text-ink"
+            >
+              {OPENING_TYPES.map((t) => (
+                <option key={t} value={t} className="capitalize">
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="grid grid-cols-2 gap-2">
+            <DimensionInput label="Width" valueIn={opening.widthIn} min={6} onCommit={(v) => useProject.getState().updateOpening(opening.id, { widthIn: v })} />
+            <DimensionInput label="Height" valueIn={opening.heightIn} min={6} onCommit={(v) => useProject.getState().updateOpening(opening.id, { heightIn: v })} />
+          </div>
+
+          {opening.type === 'window' && (
+            <DimensionInput label="Sill height" valueIn={opening.sillHeightIn} min={0} onCommit={(v) => useProject.getState().updateOpening(opening.id, { sillHeightIn: v })} />
+          )}
+
+          <p className="text-[11px] leading-tight text-muted">Drag along the wall to reposition.</p>
+
+          <button
+            type="button"
+            onClick={() => {
+              useProject.getState().removeOpening(opening.id)
+              useEditor.getState().clearSelection()
+            }}
+            className="flex items-center justify-center gap-1.5 rounded border border-line px-2 py-1.5 text-xs text-alert hover:bg-alert/10"
+          >
+            <Trash2 size={14} strokeWidth={1.75} /> Delete opening
+          </button>
+        </Section>
+      )}
+
       {/* Selected freestanding wall */}
       {wall && (
         <Section title="Wall">

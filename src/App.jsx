@@ -56,16 +56,19 @@ export default function App() {
         const m = useEditor.getState().viewMode
         useEditor.getState().setViewMode(m === '3d' ? 'plan' : '3d')
       } else if (e.key === 'r' || e.key === 'R') useEditor.getState().setTool('room')
+      else if (e.key === 'd' || e.key === 'D') useEditor.getState().setTool('door')
+      else if (e.key === 'w' || e.key === 'W') useEditor.getState().setTool('window')
       else if (e.key === 'v' || e.key === 'V') useEditor.getState().setTool('select')
       else if (e.key === 'Escape') {
         useEditor.getState().setTool('select')
         useEditor.getState().clearSelection()
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        const { selectedId, selectedWallId } = useEditor.getState()
-        if (selectedId || selectedWallId) {
+        const { selectedId, selectedWallId, selectedOpeningId } = useEditor.getState()
+        if (selectedId || selectedWallId || selectedOpeningId) {
           e.preventDefault()
           if (selectedId) useProject.getState().removeRoom(selectedId)
           if (selectedWallId) useProject.getState().removeWall(selectedWallId)
+          if (selectedOpeningId) useProject.getState().removeOpening(selectedOpeningId)
           useEditor.getState().clearSelection()
         }
       }

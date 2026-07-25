@@ -4,6 +4,7 @@ import { OrbitControls, Grid, Html } from '@react-three/drei'
 import { useProject } from '../store/useProject.js'
 import { useEditor } from '../store/useEditor.js'
 import { resolveWalls, roomBounds } from '../lib/geometry.js'
+import { openingWorldSegment, wallSpans } from '../lib/openings.js'
 import { formatFeetInches } from '../lib/units.js'
 
 // The plan, standing up. A pure projection of the same store the 2D editor
@@ -101,6 +102,11 @@ function LevelMeshes({ level, dimmed, showCeiling, showDims }) {
     return [...roomWalls, ...freeWalls]
   }, [level.rooms, level.walls, level.mergedPairs])
 
+  const openingSegs = useMemo(
+    () => (level.openings || []).map((o) => openingWorldSegment(o, level)).filter(Boolean),
+    [level.openings, level.rooms, level.walls]
+  )
+
   const bbox = useMemo(() => {
     if (!level.rooms.length) return null
     let minX = Infinity
@@ -123,7 +129,7 @@ function LevelMeshes({ level, dimmed, showCeiling, showDims }) {
   return (
     <group>
       {walls.map((w) => (
-        <WallMesh key={w.id} w={w} floorY={floorY} height={height} opacity={opacity} transparent={transparent} />
+        <WallWithOpenings key={w.id} w={w} floorY={floorY} height={height} openingSegs={openingSegs} opacity={opacity} transparent={transparent} />
       ))}
 
       {bbox && (
@@ -141,32 +147,59 @@ function LevelMeshes({ level, dimmed, showCeiling, showDims }) {
   )
 }
 
-function WallMesh({ w, floorY, height, opacity, transparent }) {
+// A wall, split into solid boxes around any openings on it (no CSG).
+function WallWithOpenings({ w, floorY, height, openingSegs, opacity, transparent }) {
   const t = w.thicknessIn
-  const cx = (w.x1 + w.x2) / 2
-  const cz = (w.y1 + w.y2) / 2
-  const cy = floorY + height / 2
-  const horizontal = w.y1 === w.y2
-  const len = Math.hypot(w.x2 - w.x1, w.y2 - w.y1)
   const color = w.isExterior ? MAT.wallExt : MAT.wallInt
+  const horizontal = Math.abs(w.y1 - w.y2) < 0.5
+  const vertical = Math.abs(w.x1 - w.x2) < 0.5
 
-  let args
-  let rotation = [0, 0, 0]
-  if (horizontal) {
-    args = [len, height, t]
-  } else if (w.x1 === w.x2) {
-    args = [t, height, len]
-  } else {
-    // Diagonal fallback (shouldn't occur with rectilinear rooms).
-    args = [len, height, t]
-    rotation = [0, -Math.atan2(w.y2 - w.y1, w.x2 - w.x1), 0]
+  // Diagonal fallback: single solid box (rectilinear rooms never hit this).
+  if (!horizontal && !vertical) {
+    const len = Math.hypot(w.x2 - w.x1, w.y2 - w.y1)
+    return (
+      <mesh position={[(w.x1 + w.x2) / 2, floorY + height / 2, (w.y1 + w.y2) / 2]} rotation={[0, -Math.atan2(w.y2 - w.y1, w.x2 - w.x1), 0]} castShadow receiveShadow>
+        <boxGeometry args={[len, height, t]} />
+        <meshStandardMaterial color={color} roughness={1} metalness={0} transparent={transparent} opacity={opacity} />
+      </mesh>
+    )
   }
 
+  const line = horizontal ? w.y1 : w.x1
+  const ws = horizontal ? Math.min(w.x1, w.x2) : Math.min(w.y1, w.y2)
+  const we = horizontal ? Math.max(w.x1, w.x2) : Math.max(w.y1, w.y2)
+  const len = we - ws
+  const ori = horizontal ? 'H' : 'V'
+
+  const matched = openingSegs
+    .filter((os) => os.orientation === ori && Math.abs(os.line - line) < 1 && os.b > ws && os.a < we)
+    .map((os) => ({
+      a: Math.max(0, os.a - ws),
+      b: Math.min(len, os.b - ws),
+      sill: os.sillHeightIn,
+      head: Math.min(height, os.sillHeightIn + os.heightIn),
+    }))
+
+  const pieces = wallSpans(len, matched, height)
+
   return (
-    <mesh position={[cx, cy, cz]} rotation={rotation} castShadow receiveShadow>
-      <boxGeometry args={args} />
-      <meshStandardMaterial color={color} roughness={1} metalness={0} transparent={transparent} opacity={opacity} />
-    </mesh>
+    <group>
+      {pieces.map((p, i) => {
+        const pLen = p.b - p.a
+        const pH = p.y1 - p.y0
+        if (pLen <= 0 || pH <= 0) return null
+        const along = ws + (p.a + p.b) / 2
+        const cy = floorY + (p.y0 + p.y1) / 2
+        const position = horizontal ? [along, cy, line] : [line, cy, along]
+        const args = horizontal ? [pLen, pH, t] : [t, pH, pLen]
+        return (
+          <mesh key={i} position={position} castShadow receiveShadow>
+            <boxGeometry args={args} />
+            <meshStandardMaterial color={color} roughness={1} metalness={0} transparent={transparent} opacity={opacity} />
+          </mesh>
+        )
+      })}
+    </group>
   )
 }
 
