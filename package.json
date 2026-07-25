@@ -7,9 +7,12 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "verify": "node scripts/verify-phase0.mjs"
+    "verify": "node scripts/verify-phase0.mjs && node scripts/verify-phase1.mjs",
+    "verify:p0": "node scripts/verify-phase0.mjs",
+    "verify:p1": "node scripts/verify-phase1.mjs"
   },
   "dependencies": {
+    "idb-keyval": "^6.3.0",
     "lucide-react": "^0.462.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

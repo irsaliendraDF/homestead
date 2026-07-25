@@ -1,16 +1,28 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useStore } from 'zustand'
 import { Undo2, Redo2 } from 'lucide-react'
 import { useProject } from './store/useProject.js'
+import { useSession, initSession } from './store/session.js'
 import { REGION } from './config.js'
+import PlanCanvas from './components/PlanCanvas.jsx'
+import MeasurementRail from './components/MeasurementRail.jsx'
+import CanvasControls from './components/CanvasControls.jsx'
+import LevelTabs from './components/LevelTabs.jsx'
+import Inspector from './components/Inspector.jsx'
 
-// Undo/redo are wired to zundo's temporal store. They are the only interactive
-// controls in this scaffold — everything else is intentionally empty until Phase 1.
 export default function App() {
   const name = useProject((s) => s.project.name)
+  const ready = useSession((s) => s.ready)
   const canUndo = useStore(useProject.temporal, (s) => s.pastStates.length > 0)
   const canRedo = useStore(useProject.temporal, (s) => s.futureStates.length > 0)
+  const canvasAreaRef = useRef(null)
 
+  // Load persisted session (or seed the first project) once on mount.
+  useEffect(() => {
+    initSession()
+  }, [])
+
+  // Undo/redo. Skip while typing in a field.
   useEffect(() => {
     const onKey = (e) => {
       const tag = e.target?.tagName
@@ -64,31 +76,30 @@ export default function App() {
         </div>
       </header>
 
-      {/* Body: tool rail · canvas · inspector */}
+      {/* Body: tool rail · canvas column · inspector */}
       <div className="flex min-h-0 flex-1">
-        {/* Left tool rail (empty until Phase 1) */}
-        <nav
-          aria-label="Tools"
-          className="w-14 shrink-0 border-r border-line bg-panel"
-        />
+        <nav aria-label="Tools" className="w-14 shrink-0 border-r border-line bg-panel" />
 
-        {/* Center canvas */}
-        <main className="relative min-w-0 flex-1 overflow-hidden bg-canvas">
-          <div className="flex h-full items-center justify-center px-8 text-center">
-            <p className="max-w-sm font-display text-xl italic leading-relaxed text-muted">
-              A place to draw a home and the land around it.
-              <span className="mt-2 block font-sans text-xs not-italic tracking-wide text-muted/70">
-                {REGION.place} · setup complete
-              </span>
-            </p>
-          </div>
-        </main>
+        <div className="flex min-w-0 flex-1 flex-col">
+          {ready ? (
+            <>
+              <LevelTabs />
+              <div ref={canvasAreaRef} className="relative min-h-0 flex-1 overflow-hidden bg-canvas">
+                <PlanCanvas />
+                <MeasurementRail />
+                <CanvasControls containerRef={canvasAreaRef} />
+              </div>
+            </>
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <p className="font-display text-lg italic text-muted">Loading {REGION.place}…</p>
+            </div>
+          )}
+        </div>
 
-        {/* Right inspector (empty until Phase 1) */}
-        <aside
-          aria-label="Inspector"
-          className="w-72 shrink-0 border-l border-line bg-panel"
-        />
+        <aside aria-label="Inspector" className="w-72 shrink-0 border-l border-line bg-panel">
+          {ready && <Inspector />}
+        </aside>
       </div>
     </div>
   )
