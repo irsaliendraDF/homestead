@@ -4,11 +4,11 @@ import { useViewport } from '../store/useViewport.js'
 import { useEditor } from '../store/useEditor.js'
 import { screenToWorld } from '../lib/viewport.js'
 import { snapCandidates, snapAxis } from '../lib/snapping.js'
-import { UNITS } from '../config.js'
+import { roomPolygon } from '../lib/geometry.js'
 
-// All pointer interaction for the plan canvas: pan (space/middle-drag), draw a
-// room, move a room, resize via handles. Snapping is applied live; integer
-// rounding happens on commit (in the store actions). Single selection only.
+// Pointer interaction for the plan canvas: pan (space/middle-drag), draw a room
+// (rectangle → 4-point polygon), move a room, move a single corner (vertex), or
+// move a whole wall (edge). Snapping is applied live; integer rounding on commit.
 const SNAP_PX = 10
 const CLICK_MIN = 12 // a draw smaller than this in both axes = a click → default room
 
@@ -26,7 +26,6 @@ export function usePlanInteractions(svgRef, spaceRef) {
   const thresholdIn = () => SNAP_PX / useViewport.getState().zoom
 
   const onPointerDown = (e) => {
-    // Pan takes precedence (space held or middle button).
     if (e.button === 1 || spaceRef.current) {
       it.current = { mode: 'pan', last: { x: e.clientX, y: e.clientY } }
       svgRef.current.setPointerCapture(e.pointerId)
@@ -43,26 +42,30 @@ export function usePlanInteractions(svgRef, spaceRef) {
       return
     }
 
-    // Select tool: hit-test via data attributes on the rendered elements.
-    const handle = e.target.getAttribute?.('data-handle')
     const roomId = e.target.getAttribute?.('data-room-id')
+    const vertex = e.target.getAttribute?.('data-vertex')
+    const edge = e.target.getAttribute?.('data-edge')
     const level = activeLevel()
+    const room = roomId ? level.rooms.find((r) => r.id === roomId) : null
 
-    if (handle && roomId) {
-      const room = level.rooms.find((r) => r.id === roomId)
+    if (room && vertex != null) {
       useEditor.getState().select(roomId)
-      it.current = { mode: 'resize', handle, roomId, orig: { ...room }, start }
+      it.current = { mode: 'vertex', roomId, index: Number(vertex), orig: roomPolygon(room), start }
       svgRef.current.setPointerCapture(e.pointerId)
       return
     }
-    if (roomId) {
-      const room = level.rooms.find((r) => r.id === roomId)
+    if (room && edge != null) {
       useEditor.getState().select(roomId)
-      it.current = { mode: 'move', roomId, orig: { ...room }, start }
+      it.current = { mode: 'edge', roomId, index: Number(edge), orig: roomPolygon(room), start }
       svgRef.current.setPointerCapture(e.pointerId)
       return
     }
-    // Empty space → deselect.
+    if (room) {
+      useEditor.getState().select(roomId)
+      it.current = { mode: 'move', roomId, orig: roomPolygon(room), start }
+      svgRef.current.setPointerCapture(e.pointerId)
+      return
+    }
     useEditor.getState().clearSelection()
   }
 
@@ -87,31 +90,51 @@ export function usePlanInteractions(svgRef, spaceRef) {
     if (cur.mode === 'draw') {
       const sx = snapAxis([p.x], cand.xs, thr)
       const sy = snapAxis([p.y], cand.ys, thr)
-      const cx = p.x + sx.delta
-      const cy = p.y + sy.delta
-      const rect = normalize(cur.start, { x: cx, y: cy })
-      useEditor.getState().setPreview(rect, guides(sx, sy), null)
+      const rect = normalize(cur.start, { x: p.x + sx.delta, y: p.y + sy.delta })
+      useEditor.getState().setPreview({ points: rectPoints(rect) }, guides(sx, sy), null)
       return
     }
 
     if (cur.mode === 'move') {
-      let nx = cur.orig.x + (p.x - cur.start.x)
-      let ny = cur.orig.y + (p.y - cur.start.y)
-      const sx = snapAxis([nx, nx + cur.orig.w], cand.xs, thr)
-      const sy = snapAxis([ny, ny + cur.orig.d], cand.ys, thr)
-      nx += sx.delta
-      ny += sy.delta
-      useEditor.getState().setPreview(
-        { x: nx, y: ny, w: cur.orig.w, d: cur.orig.d },
-        guides(sx, sy),
-        cur.roomId
-      )
+      const dx = p.x - cur.start.x
+      const dy = p.y - cur.start.y
+      const moved = cur.orig.map((v) => ({ x: v.x + dx, y: v.y + dy }))
+      const bb = bounds(moved)
+      const sx = snapAxis([bb.minX, bb.maxX], cand.xs, thr)
+      const sy = snapAxis([bb.minY, bb.maxY], cand.ys, thr)
+      const points = moved.map((v) => ({ x: v.x + sx.delta, y: v.y + sy.delta }))
+      useEditor.getState().setPreview({ points }, guides(sx, sy), cur.roomId)
       return
     }
 
-    if (cur.mode === 'resize') {
-      const rect = resizeRect(cur, p, cand, thr)
-      useEditor.getState().setPreview(rect.rect, rect.guides, cur.roomId)
+    if (cur.mode === 'vertex') {
+      const o = cur.orig[cur.index]
+      const nx = o.x + (p.x - cur.start.x)
+      const ny = o.y + (p.y - cur.start.y)
+      const sx = snapAxis([nx], cand.xs, thr)
+      const sy = snapAxis([ny], cand.ys, thr)
+      const points = cur.orig.map((v, i) =>
+        i === cur.index ? { x: nx + sx.delta, y: ny + sy.delta } : v
+      )
+      useEditor.getState().setPreview({ points }, guides(sx, sy), cur.roomId)
+      return
+    }
+
+    if (cur.mode === 'edge') {
+      const i = cur.index
+      const j = (i + 1) % cur.orig.length
+      const dx = p.x - cur.start.x
+      const dy = p.y - cur.start.y
+      const a = { x: cur.orig[i].x + dx, y: cur.orig[i].y + dy }
+      const b = { x: cur.orig[j].x + dx, y: cur.orig[j].y + dy }
+      const sx = snapAxis([a.x, b.x], cand.xs, thr)
+      const sy = snapAxis([a.y, b.y], cand.ys, thr)
+      const points = cur.orig.map((v, k) => {
+        if (k === i) return { x: a.x + sx.delta, y: a.y + sy.delta }
+        if (k === j) return { x: b.x + sx.delta, y: b.y + sy.delta }
+        return v
+      })
+      useEditor.getState().setPreview({ points }, guides(sx, sy), cur.roomId)
     }
   }
 
@@ -130,11 +153,12 @@ export function usePlanInteractions(svgRef, spaceRef) {
     useEditor.getState().clearPreview()
 
     if (cur.mode === 'draw') {
-      const isClick = !preview || (preview.w < CLICK_MIN && preview.d < CLICK_MIN)
+      const bb = preview ? bounds(preview.points) : null
+      const isClick = !bb || (bb.maxX - bb.minX < CLICK_MIN && bb.maxY - bb.minY < CLICK_MIN)
       if (isClick) {
         useProject.getState().addRoom({ x: cur.start.x - 72, y: cur.start.y - 72, w: 144, d: 144 })
       } else {
-        useProject.getState().addRoom(preview)
+        useProject.getState().addRoom({ x: bb.minX, y: bb.minY, w: bb.maxX - bb.minX, d: bb.maxY - bb.minY })
       }
       const newId = useProject.getState()._lastRoomId
       useEditor.getState().setTool('select')
@@ -142,8 +166,8 @@ export function usePlanInteractions(svgRef, spaceRef) {
       return
     }
 
-    if ((cur.mode === 'move' || cur.mode === 'resize') && preview) {
-      useProject.getState().updateRoom(cur.roomId, preview)
+    if (preview && (cur.mode === 'move' || cur.mode === 'vertex' || cur.mode === 'edge')) {
+      useProject.getState().updateRoom(cur.roomId, { points: preview.points })
     }
   }
 
@@ -151,56 +175,29 @@ export function usePlanInteractions(svgRef, spaceRef) {
 }
 
 function normalize(a, b) {
-  return {
-    x: Math.min(a.x, b.x),
-    y: Math.min(a.y, b.y),
-    w: Math.abs(b.x - a.x),
-    d: Math.abs(b.y - a.y),
-  }
+  return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), d: Math.abs(b.y - a.y) }
 }
-
+function rectPoints({ x, y, w, d }) {
+  return [
+    { x, y },
+    { x: x + w, y },
+    { x: x + w, y: y + d },
+    { x, y: y + d },
+  ]
+}
+function bounds(points) {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const p of points) {
+    if (p.x < minX) minX = p.x
+    if (p.y < minY) minY = p.y
+    if (p.x > maxX) maxX = p.x
+    if (p.y > maxY) maxY = p.y
+  }
+  return { minX, minY, maxX, maxY }
+}
 function guides(sx, sy) {
-  return {
-    xs: sx.guide != null ? [sx.guide] : [],
-    ys: sy.guide != null ? [sy.guide] : [],
-  }
-}
-
-function resizeRect(cur, p, cand, thr) {
-  const { handle, orig, start } = cur
-  const MIN = UNITS.MIN_ROOM_IN
-  let left = orig.x
-  let right = orig.x + orig.w
-  let top = orig.y
-  let bottom = orig.y + orig.d
-  const dx = p.x - start.x
-  const dy = p.y - start.y
-  const mL = handle.includes('w')
-  const mR = handle.includes('e')
-  const mT = handle.includes('n')
-  const mB = handle.includes('s')
-  if (mL) left = orig.x + dx
-  if (mR) right = orig.x + orig.w + dx
-  if (mT) top = orig.y + dy
-  if (mB) bottom = orig.y + orig.d + dy
-
-  const movingXs = [...(mL ? [left] : []), ...(mR ? [right] : [])]
-  const movingYs = [...(mT ? [top] : []), ...(mB ? [bottom] : [])]
-  const sx = movingXs.length ? snapAxis(movingXs, cand.xs, thr) : { delta: 0, guide: null }
-  const sy = movingYs.length ? snapAxis(movingYs, cand.ys, thr) : { delta: 0, guide: null }
-  if (mL) left += sx.delta
-  if (mR) right += sx.delta
-  if (mT) top += sy.delta
-  if (mB) bottom += sy.delta
-
-  // Clamp to the minimum without inverting (the fixed edge stays put).
-  if (mL && left > right - MIN) left = right - MIN
-  if (mR && right < left + MIN) right = left + MIN
-  if (mT && top > bottom - MIN) top = bottom - MIN
-  if (mB && bottom < top + MIN) bottom = top + MIN
-
-  return {
-    rect: { x: left, y: top, w: right - left, d: bottom - top },
-    guides: guides(sx, sy),
-  }
+  return { xs: sx.guide != null ? [sx.guide] : [], ys: sy.guide != null ? [sy.guide] : [] }
 }

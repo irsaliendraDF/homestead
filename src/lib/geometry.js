@@ -1,28 +1,124 @@
-// The gate. Rooms are CENTERLINE rectangles (x,y,w,d in integer inches). This
-// module turns a set of rooms into a deduplicated wall set, and answers the
-// adjacency/overlap and interior-area questions that ride on the same model.
+// The gate, generalized to POLYGON rooms. A room is an ordered list of vertices
+// (integer inches) forming its wall centerline loop. A freshly drawn room is a
+// rectangle (4 points); corners can then be dragged freely into L-shapes etc.
 //
-// Pure and deterministic. Memoize callers on the rooms array (resolveWalls runs
-// on every render otherwise — see the risks list).
+// Axis-aligned edges keep the exact centerline interval algorithm (so the 7/9
+// rectangle gate still holds). Diagonal edges render as exterior walls and don't
+// share yet — a documented limitation. Pure and deterministic; memoize callers.
 import { DEFAULTS } from '../config.js'
 
 const EXTERIOR = DEFAULTS.WALL_THICKNESS_IN // 6"
 const INTERIOR = DEFAULTS.INTERIOR_WALL_IN // 4"
-
-// Outward normals. H edges face north/south (±y), V edges face east/west (±x).
-// Two edges oppose when they share a line and carry opposite normals.
 const opposite = { N: 'S', S: 'N', E: 'W', W: 'E' }
 
-/** The 4 centerline edges of a room. line = the fixed coordinate; span = the
- *  varying range along the edge. */
-function roomEdges(room) {
-  const { id, x, y, w, d } = room
+/** A room's vertex loop. Accepts new-style {points} or legacy {x,y,w,d}. */
+export function roomPolygon(room) {
+  if (room.points && room.points.length >= 3) return room.points
+  const { x = 0, y = 0, w = 0, d = 0 } = room
   return [
-    { orientation: 'H', line: y, span: [x, x + w], normal: 'N', roomId: id }, // top
-    { orientation: 'H', line: y + d, span: [x, x + w], normal: 'S', roomId: id }, // bottom
-    { orientation: 'V', line: x, span: [y, y + d], normal: 'W', roomId: id }, // left
-    { orientation: 'V', line: x + w, span: [y, y + d], normal: 'E', roomId: id }, // right
+    { x, y },
+    { x: x + w, y },
+    { x: x + w, y: y + d },
+    { x, y: y + d },
   ]
+}
+
+/** Rectangle → the 4-point polygon we store for a new room. */
+export function rectToPoints({ x, y, w, d }) {
+  return [
+    { x, y },
+    { x: x + w, y },
+    { x: x + w, y: y + d },
+    { x, y: y + d },
+  ]
+}
+
+export function pointInPolygon(x, y, pts) {
+  let inside = false
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const xi = pts[i].x
+    const yi = pts[i].y
+    const xj = pts[j].x
+    const yj = pts[j].y
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}
+
+/** Bounding box of a room, in inches. */
+export function roomBounds(room) {
+  const pts = roomPolygon(room)
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x
+    if (p.y < minY) minY = p.y
+    if (p.x > maxX) maxX = p.x
+    if (p.y > maxY) maxY = p.y
+  }
+  return { x: minX, y: minY, w: maxX - minX, d: maxY - minY }
+}
+
+/** Centroid (vertex average — fine for label placement). */
+export function roomCentroid(room) {
+  const pts = roomPolygon(room)
+  const sum = pts.reduce((a, p) => ({ x: a.x + p.x, y: a.y + p.y }), { x: 0, y: 0 })
+  return { x: sum.x / pts.length, y: sum.y / pts.length }
+}
+
+/** Signed-area magnitude (shoelace) → square FEET. Centerline area. */
+export function roomAreaSqft(room) {
+  const pts = roomPolygon(room)
+  let a = 0
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    a += (pts[j].x + pts[i].x) * (pts[j].y - pts[i].y)
+  }
+  return Math.abs(a / 2) / 144
+}
+// Back-compat name used by earlier components.
+export const roomInteriorSqft = roomAreaSqft
+
+// One wall centerline edge, classified H/V/D with its outward normal.
+function edgeList(room) {
+  const pts = roomPolygon(room)
+  const edges = []
+  const n = pts.length
+  for (let i = 0; i < n; i++) {
+    const a = pts[i]
+    const b = pts[(i + 1) % n]
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    if (dx === 0 && dy === 0) continue
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+    if (dy === 0) {
+      const insideAbove = pointInPolygon(mid.x, mid.y - 0.5, pts)
+      edges.push({
+        orientation: 'H',
+        line: a.y,
+        span: [Math.min(a.x, b.x), Math.max(a.x, b.x)],
+        normal: insideAbove ? 'S' : 'N',
+        roomId: room.id,
+        a,
+        b,
+      })
+    } else if (dx === 0) {
+      const insideLeft = pointInPolygon(mid.x - 0.5, mid.y, pts)
+      edges.push({
+        orientation: 'V',
+        line: a.x,
+        span: [Math.min(a.y, b.y), Math.max(a.y, b.y)],
+        normal: insideLeft ? 'E' : 'W',
+        roomId: room.id,
+        a,
+        b,
+      })
+    } else {
+      edges.push({ orientation: 'D', roomId: room.id, a, b })
+    }
+  }
+  return edges
 }
 
 const overlaps = (a, b) => Math.max(a[0], b[0]) < Math.min(a[1], b[1])
@@ -34,17 +130,16 @@ function toSegment(orientation, line, a, b) {
 }
 
 /**
- * resolveWalls(rooms) → wall segments.
- * Each: { id, x1, y1, x2, y2, thicknessIn, isExterior, roomIds:[sorted] }.
- * SHARED segments (a boundary between two rooms) are emitted once. No collinear
- * post-merge — counts stay predictable and openings attach per-segment later.
+ * resolveWalls(rooms) → [{ id, x1, y1, x2, y2, thicknessIn, isExterior, roomIds }].
+ * SHARED boundaries emitted once. No collinear post-merge.
  */
 export function resolveWalls(rooms) {
-  const edges = rooms.flatMap(roomEdges)
+  const all = rooms.flatMap(edgeList)
+  const axis = all.filter((e) => e.orientation !== 'D')
+  const diag = all.filter((e) => e.orientation === 'D')
 
-  // Bucket by (orientation, line): only edges on the same line can interact.
   const buckets = new Map()
-  for (const e of edges) {
+  for (const e of axis) {
     const key = `${e.orientation}|${e.line}`
     if (!buckets.has(key)) buckets.set(key, [])
     buckets.get(key).push(e)
@@ -53,13 +148,11 @@ export function resolveWalls(rooms) {
   const walls = []
   const sharedSeen = new Set()
 
-  for (const e of edges) {
+  for (const e of axis) {
     const bucket = buckets.get(`${e.orientation}|${e.line}`)
     const opposing = bucket.filter(
       (o) => o.roomId !== e.roomId && o.normal === opposite[e.normal] && overlaps(e.span, o.span)
     )
-
-    // Split points: this edge's endpoints + every opposing endpoint clamped in.
     const [lo, hi] = e.span
     const points = new Set([lo, hi])
     for (const o of opposing) {
@@ -76,7 +169,6 @@ export function resolveWalls(rooms) {
       const cover = opposing.find((o) => o.span[0] <= mid && mid <= o.span[1])
 
       if (cover) {
-        // SHARED — emit once via canonical key.
         const key = `${e.orientation}|${e.line}|${a}|${b}`
         if (sharedSeen.has(key)) continue
         sharedSeen.add(key)
@@ -88,7 +180,6 @@ export function resolveWalls(rooms) {
           roomIds: [e.roomId, cover.roomId].sort(),
         })
       } else {
-        // EXTERIOR — unique to this room edge.
         walls.push({
           id: `E|${e.orientation}|${e.line}|${a}|${b}|${e.roomId}`,
           ...toSegment(e.orientation, e.line, a, b),
@@ -100,18 +191,59 @@ export function resolveWalls(rooms) {
     }
   }
 
+  // Diagonal edges: exterior only (no sharing yet).
+  for (const e of diag) {
+    walls.push({
+      id: `D|${e.roomId}|${e.a.x},${e.a.y}|${e.b.x},${e.b.y}`,
+      x1: e.a.x,
+      y1: e.a.y,
+      x2: e.b.x,
+      y2: e.b.y,
+      thicknessIn: EXTERIOR,
+      isExterior: true,
+      roomIds: [e.roomId],
+    })
+  }
+
   return walls
 }
 
-/** Two rooms overlap when their centerline rectangles intersect with positive
- *  area. Zero-area edge contact (flush rooms) is adjacency, NOT overlap. */
-export function roomsOverlap(a, b) {
-  const ix = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)
-  const iy = Math.min(a.y + a.d, b.y + b.d) - Math.max(a.y, b.y)
-  return ix > 0 && iy > 0
+// ── Overlap (polygon, proper intersection = positive-area) ────
+function orient(p, q, r) {
+  const v = (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x)
+  return v > 1e-9 ? 1 : v < -1e-9 ? -1 : 0
+}
+function segmentsCross(p1, p2, p3, p4) {
+  // Proper crossing only — collinear or endpoint-touching is NOT a crossing
+  // (that's adjacency, not overlap).
+  const d1 = orient(p3, p4, p1)
+  const d2 = orient(p3, p4, p2)
+  const d3 = orient(p1, p2, p3)
+  const d4 = orient(p1, p2, p4)
+  return d1 !== d2 && d3 !== d4 && d1 !== 0 && d2 !== 0 && d3 !== 0 && d4 !== 0
 }
 
-/** Ids of all rooms that overlap at least one other room. */
+export function roomsOverlap(A, B) {
+  const pa = roomPolygon(A)
+  const pb = roomPolygon(B)
+  // bbox reject
+  const ba = roomBounds(A)
+  const bb = roomBounds(B)
+  if (ba.x + ba.w <= bb.x || bb.x + bb.w <= ba.x || ba.y + ba.d <= bb.y || bb.y + bb.d <= ba.y) {
+    return false
+  }
+  for (let i = 0; i < pa.length; i++) {
+    const a1 = pa[i]
+    const a2 = pa[(i + 1) % pa.length]
+    for (let j = 0; j < pb.length; j++) {
+      if (segmentsCross(a1, a2, pb[j], pb[(j + 1) % pb.length])) return true
+    }
+  }
+  if (pa.some((p) => pointInPolygon(p.x, p.y, pb))) return true
+  if (pb.some((p) => pointInPolygon(p.x, p.y, pa))) return true
+  return false
+}
+
 export function overlappingRoomIds(rooms) {
   const bad = new Set()
   for (let i = 0; i < rooms.length; i++) {
@@ -123,48 +255,4 @@ export function overlappingRoomIds(rooms) {
     }
   }
   return bad
-}
-
-/**
- * Interior clear area of a room, in square inches. Each side's inset is half
- * the wall thickness on that side: 3" where exterior, 2" where fully shared.
- * A partially-shared side is treated as exterior for its inset (the exposed run
- * governs the outer dimension) — the honest builder figure for simple rooms.
- */
-export function roomInteriorInsets(room, rooms) {
-  const others = rooms.filter((r) => r.id !== room.id)
-  const sideShared = (line, orientation, span, normal) => {
-    // Fully shared if opposing coverage spans the whole side.
-    const covered = coverageLength(line, orientation, span, normal, others)
-    return covered >= span[1] - span[0] - 1e-6
-  }
-  const top = sideShared(room.y, 'H', [room.x, room.x + room.w], 'N')
-  const bottom = sideShared(room.y + room.d, 'H', [room.x, room.x + room.w], 'S')
-  const left = sideShared(room.x, 'V', [room.y, room.y + room.d], 'W')
-  const right = sideShared(room.x + room.w, 'V', [room.y, room.y + room.d], 'E')
-  const half = (shared) => (shared ? INTERIOR / 2 : EXTERIOR / 2)
-  return { top: half(top), bottom: half(bottom), left: half(left), right: half(right) }
-}
-
-function coverageLength(line, orientation, span, normal, others) {
-  const need = normal
-  let total = 0
-  for (const r of others) {
-    for (const e of roomEdges(r)) {
-      if (e.orientation !== orientation || e.line !== line) continue
-      if (e.normal !== opposite[need]) continue
-      const a = Math.max(span[0], e.span[0])
-      const b = Math.min(span[1], e.span[1])
-      if (b > a) total += b - a
-    }
-  }
-  return total
-}
-
-/** Interior clear area in SQUARE FEET (for the inspector). */
-export function roomInteriorSqft(room, rooms) {
-  const ins = roomInteriorInsets(room, rooms)
-  const wIn = Math.max(0, room.w - ins.left - ins.right)
-  const dIn = Math.max(0, room.d - ins.top - ins.bottom)
-  return (wIn * dIn) / 144
 }

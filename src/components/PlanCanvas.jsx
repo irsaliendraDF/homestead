@@ -5,8 +5,11 @@ import { useEditor } from '../store/useEditor.js'
 import { useSession } from '../store/session.js'
 import { fitView } from '../lib/viewport.js'
 import { usePlanInteractions } from '../hooks/usePlanInteractions.js'
+import { roomPolygon } from '../lib/geometry.js'
 import RoomsLayer from './RoomsLayer.jsx'
 import { COLOR } from '../tokens.js'
+
+const ptsStr = (pts) => pts.map((p) => `${p.x},${p.y}`).join(' ')
 
 // The plan canvas: SVG in world inches, pan + cursor-anchored zoom, a 1'/5'
 // grid, the plot boundary, the ghost-below layer, and rooms (Phase 2).
@@ -94,7 +97,7 @@ export default function PlanCanvas() {
           {view.showGhostBelow && belowLevel && (
             <g opacity={0.15} style={{ pointerEvents: 'none' }}>
               {belowLevel.rooms.map((r) => (
-                <rect key={r.id} x={r.x} y={r.y} width={r.w} height={r.d} fill="none" stroke={COLOR.ink} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                <polygon key={r.id} points={ptsStr(roomPolygon(r))} fill="none" stroke={COLOR.ink} strokeWidth={1} vectorEffect="non-scaling-stroke" />
               ))}
             </g>
           )}

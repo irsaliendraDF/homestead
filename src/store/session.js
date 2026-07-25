@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { useProject, makeDefaultProject, uid } from './useProject.js'
+import { useProject, makeDefaultProject, uid, migrateProject } from './useProject.js'
 import { useViewport } from './useViewport.js'
 import * as db from './persistence.js'
 
@@ -69,7 +69,7 @@ export async function initSession() {
   if (activeId) {
     const blob = await db.loadProjectBlob(activeId)
     if (blob?.project) {
-      useProject.getState().setProject(blob.project)
+      useProject.getState().setProject(migrateProject(blob.project))
       if (blob.viewport) useViewport.getState().setView(blob.viewport)
       useProject.temporal.getState().clear()
       useSession.getState()._set({
@@ -127,7 +127,7 @@ export async function switchProject(id) {
   if (id === useSession.getState().activeId) return
   const blob = await db.loadProjectBlob(id)
   if (!blob?.project) return
-  useProject.getState().setProject(blob.project)
+  useProject.getState().setProject(migrateProject(blob.project))
   useViewport.getState().setView(blob.viewport ?? {})
   useProject.temporal.getState().clear()
   await db.setActiveId(id)

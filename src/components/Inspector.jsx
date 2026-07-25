@@ -10,7 +10,7 @@ import {
 } from '../store/session.js'
 import { REGION, UNITS, ROOM_TYPES } from '../config.js'
 import { formatFeetInches } from '../lib/units.js'
-import { roomInteriorSqft, overlappingRoomIds } from '../lib/geometry.js'
+import { roomAreaSqft, roomBounds, roomPolygon, overlappingRoomIds } from '../lib/geometry.js'
 import DimensionInput from './DimensionInput.jsx'
 
 // Right-hand inspector. Phase 1 scope: project management, plot size, and the
@@ -60,25 +60,26 @@ export default function Inspector() {
             </select>
           </label>
 
-          <div className="grid grid-cols-2 gap-2">
-            <DimensionInput
-              label="Width"
-              valueIn={room.w}
-              min={UNITS.MIN_ROOM_IN}
-              onCommit={(v) => useProject.getState().updateRoom(room.id, { w: v })}
-            />
-            <DimensionInput
-              label="Depth"
-              valueIn={room.d}
-              min={UNITS.MIN_ROOM_IN}
-              onCommit={(v) => useProject.getState().updateRoom(room.id, { d: v })}
-            />
+          <div className="flex items-center justify-between text-xs text-muted">
+            <span>Size (bounding box)</span>
+            <span className="num text-ink">
+              {formatFeetInches(roomBounds(room).w)} × {formatFeetInches(roomBounds(room).d)}
+            </span>
           </div>
 
           <div className="flex items-center justify-between text-xs text-muted">
-            <span>Interior area</span>
-            <span className="num text-ink">{roomInteriorSqft(room, rooms).toFixed(1)} sq ft</span>
+            <span>Floor area (approx)</span>
+            <span className="num text-ink">{roomAreaSqft(room).toFixed(1)} sq ft</span>
           </div>
+
+          <div className="flex items-center justify-between text-xs text-muted">
+            <span>Corners</span>
+            <span className="num text-ink">{roomPolygon(room).length}</span>
+          </div>
+
+          <p className="text-[11px] leading-tight text-muted">
+            Drag a corner to move just that corner; drag a wall's dot to move the whole wall.
+          </p>
 
           {overlapping && (
             <p className="rounded bg-alert/10 px-2 py-1.5 text-[11px] leading-tight text-alert">

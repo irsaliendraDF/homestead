@@ -120,3 +120,21 @@ zoom; overlap flags in red; undo after a snap restores geometry.
 no multi-select. **STOPPING before Phase 3** per the kickoff working agreement.
 
 **Not merged to `main`** — pending Irene's review of the gate numbers + browser test.
+
+### Phase 2 follow-up — free-form room shapes (Irene's ask, 2026-07-25)
+
+Deviation from §0 rectangles-only, at Irene's request (see `docs/decisions.md`). Rooms are now
+polygons (`points[]`); a drawn room starts as a rectangle, then **each corner drags freely**
+(only that corner moves), and each wall has a midpoint handle to move the whole wall. Strong
+snapping keeps right angles easy.
+
+- `geometry.js` generalized to polygon edges; axis-aligned edges keep the exact interval
+  algorithm so **the 7/9 gate still passes** (verified). Diagonal edges render exterior-only.
+- New/updated: `roomPolygon/roomBounds/roomCentroid/roomAreaSqft/pointInPolygon`, polygon
+  `roomsOverlap` (proper-intersection). Store: `points`-based `addRoom/updateRoom`, legacy
+  `{x,y,w,d}` rooms migrated to points on load.
+- Handles: corner (square) + wall-midpoint (circle). Walls render as rects (axis) or thick
+  lines (diagonal). Live dimension chips label each wall length while editing. Inspector shows
+  bounding box, floor area (approx, centerline), corner count.
+- Gate re-run PASS incl. new Test 6: moving one corner leaves the other three untouched; undo
+  restores exactly.

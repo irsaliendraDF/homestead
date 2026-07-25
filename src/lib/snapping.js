@@ -3,17 +3,20 @@
 // every zoom level. Priority: (1) another room's parallel edge, (2) the plot
 // boundary, (3) the grid. X and Y snap independently.
 import { UNITS } from '../config.js'
+import { roomPolygon } from './geometry.js'
 
 const PRIO = { room: 0, plot: 1, grid: 2 }
 
-/** Candidate snap lines per axis from the other rooms and the plot. */
+/** Candidate snap lines per axis from other rooms' vertices and the plot. */
 export function snapCandidates(rooms, plot, excludeId) {
   const xs = [] // { v, kind }
   const ys = []
   for (const r of rooms) {
     if (r.id === excludeId) continue
-    xs.push({ v: r.x, kind: 'room' }, { v: r.x + r.w, kind: 'room' })
-    ys.push({ v: r.y, kind: 'room' }, { v: r.y + r.d, kind: 'room' })
+    for (const p of roomPolygon(r)) {
+      xs.push({ v: p.x, kind: 'room' })
+      ys.push({ v: p.y, kind: 'room' })
+    }
   }
   xs.push({ v: 0, kind: 'plot' }, { v: plot.widthIn, kind: 'plot' })
   ys.push({ v: 0, kind: 'plot' }, { v: plot.depthIn, kind: 'plot' })

@@ -26,3 +26,25 @@ only for genuine, justified deviations and for resolving flagged unknowns.
   IMPORTANT for Phase 6.3 — the Anthropic key must live ONLY in Vercel env vars, never
   committed, which matters more given the repo is public. Flagged, not changed.
 - Fonts: confirmed staying on Google Fonts per Irene (2026-07-25). No @fontsource dep.
+
+## 2026-07-25 — DEVIATION from §0: free-form room shapes (Irene's explicit ask)
+
+§0 locked "Drawing model: place rectangles, snap them together" and Phase 2 guarded
+"rectangles only." **Irene asked to move a single corner freely and keep the rest of the
+walls in place** ("if a corner is overlapping I just want to move that one corner"). That is
+only possible if rooms are editable polygons, not rigid rectangles — so we're deviating,
+at her direction.
+
+- **Room model:** `Room.points = [{x,y}, …]` (integer inches, ordered). A new room is still
+  drawn as a rectangle (4 points). Corners = draggable vertices; edges have midpoint handles
+  to move a whole wall; body-drag still moves the whole room.
+- **Consequence:** L-shapes and angled walls are now possible. Strong snapping (vertex → other
+  vertices/edges, plot, grid) keeps right angles easy. Hold-to-constrain can be added later.
+- **Wall resolution:** `resolveWalls` generalized to polygon edges. Axis-aligned edges keep the
+  exact centerline interval algorithm (the 7/9 gate still holds for rectangles). Non-axis
+  (diagonal) edges render as exterior walls and don't participate in shared-wall dedup yet —
+  a known limitation, fine for now since diagonal *shared* walls are rare.
+- **Area:** shown as centerline polygon area (shoelace), labeled "floor area (approx)". The
+  precise per-side wall inset from the kickoff doc applies cleanly to rectangles only; for
+  arbitrary polygons it's an approximation. Flagged, not hidden.
+- Backward-compatible: old rooms stored as x/y/w/d are migrated to points on load.

@@ -75,6 +75,28 @@ export function makeDefaultProject() {
 
 const touch = (project, patch) => ({ ...project, ...patch, updatedAt: nowIso() })
 
+/** Migrate legacy rectangle rooms ({x,y,w,d}) to polygon rooms ({points}). */
+export function migrateProject(project) {
+  if (!project?.levels) return project
+  return {
+    ...project,
+    levels: project.levels.map((l) => ({ ...l, rooms: (l.rooms || []).map(migrateRoom) })),
+  }
+}
+function migrateRoom(r) {
+  if (r.points && r.points.length >= 3) return r
+  const { x = 0, y = 0, w = 0, d = 0, ...rest } = r
+  return {
+    ...rest,
+    points: [
+      { x, y },
+      { x: x + w, y },
+      { x: x + w, y: y + d },
+      { x, y: y + d },
+    ],
+  }
+}
+
 /** Immutably replace one level by id. */
 const mapLevel = (levels, levelId, fn) => levels.map((l) => (l.id === levelId ? fn(l) : l))
 
@@ -168,43 +190,47 @@ export const useProject = create(
         })),
 
       // ── Rooms (on the active level) ─────────────────────
-      // Every stored coordinate is a rounded integer inch — no floats ever reach
-      // the store, so the shared-wall dedupe never misses by 0.0001".
-      addRoom: (partial) =>
+      // Rooms are polygons: room.points = [{x,y}, …], integer inches. A new room
+      // is drawn as a rectangle, then its corners can move freely. Every stored
+      // coordinate is a rounded integer — no floats reach the store, so the
+      // shared-wall dedupe never misses by 0.0001".
+      addRoom: (rect) =>
         set((s) => {
           const levelId = s.project.view.activeLevelId
           const level = s.project.levels.find((l) => l.id === levelId)
           const n = nextRoomNumber(level.rooms)
+          const x = Math.round(rect.x)
+          const y = Math.round(rect.y)
+          const w = Math.max(UNITS.MIN_ROOM_IN, Math.round(rect.w))
+          const d = Math.max(UNITS.MIN_ROOM_IN, Math.round(rect.d))
           const room = {
             id: uid(),
             name: `Room ${n}`,
             type: null,
             wallThicknessIn: DEFAULTS.WALL_THICKNESS_IN,
-            x: Math.round(partial.x),
-            y: Math.round(partial.y),
-            w: Math.max(UNITS.MIN_ROOM_IN, Math.round(partial.w)),
-            d: Math.max(UNITS.MIN_ROOM_IN, Math.round(partial.d)),
+            points: [
+              { x, y },
+              { x: x + w, y },
+              { x: x + w, y: y + d },
+              { x, y: y + d },
+            ],
           }
           return {
             project: touch(s.project, {
-              levels: mapLevel(s.project.levels, levelId, (l) => ({
-                ...l,
-                rooms: [...l.rooms, room],
-              })),
+              levels: mapLevel(s.project.levels, levelId, (l) => ({ ...l, rooms: [...l.rooms, room] })),
             }),
             _lastRoomId: room.id,
           }
         }),
 
+      // patch may include { name, type } and/or { points }. Points are rounded.
       updateRoom: (roomId, patch) =>
         set((s) => {
           const levelId = s.project.view.activeLevelId
-          const clean = {}
-          for (const [k, v] of Object.entries(patch)) {
-            clean[k] = ['x', 'y', 'w', 'd'].includes(k) ? Math.round(v) : v
+          const clean = { ...patch }
+          if (patch.points) {
+            clean.points = patch.points.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) }))
           }
-          if ('w' in clean) clean.w = Math.max(UNITS.MIN_ROOM_IN, clean.w)
-          if ('d' in clean) clean.d = Math.max(UNITS.MIN_ROOM_IN, clean.d)
           return {
             project: touch(s.project, {
               levels: mapLevel(s.project.levels, levelId, (l) => ({

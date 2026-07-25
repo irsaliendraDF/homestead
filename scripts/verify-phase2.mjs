@@ -1,6 +1,6 @@
 // Phase 2 — THE GATE. Runs the five acceptance tests from the kickoff doc and
 // prints the actual outputs. Run: node scripts/verify-phase2.mjs
-import { resolveWalls, roomsOverlap } from '../src/lib/geometry.js'
+import { resolveWalls, roomsOverlap, roomBounds } from '../src/lib/geometry.js'
 import { useProject, makeDefaultProject } from '../src/store/useProject.js'
 import { UNITS } from '../src/config.js'
 
@@ -65,30 +65,43 @@ console.log('\nTest 4 — stored room geometry is always integer inches')
   useProject.getState().setProject(makeDefaultProject())
   useProject.getState().addRoom({ x: 10.4, y: 20.6, w: 143.7, d: 144.2 })
   const room = activeRooms()[0]
-  console.log(`  stored: x=${room.x} y=${room.y} w=${room.w} d=${room.d}`)
-  const allInt = [room.x, room.y, room.w, room.d].every(Number.isInteger)
-  check('x,y,w,d all integers', allInt, JSON.stringify(room))
+  console.log(`  points: ${room.points.map((p) => `(${p.x},${p.y})`).join(' ')}`)
+  const allInt = room.points.every((p) => Number.isInteger(p.x) && Number.isInteger(p.y))
+  check('every vertex is integer inches', allInt, JSON.stringify(room.points))
 }
 
-// ── Test 5 — clamp + undo ─────────────────────────────────
-console.log('\nTest 5 — resize clamps at MIN_ROOM_IN; undo restores exact geometry')
+// ── Test 5 — draw clamps at MIN_ROOM_IN; undo restores geometry ──
+console.log('\nTest 5 — a too-small draw clamps to MIN; undo restores exact geometry')
 {
   useProject.getState().setProject(makeDefaultProject())
   useProject.temporal.getState().clear()
-  useProject.getState().addRoom({ x: 0, y: 0, w: 144, d: 144 })
-  const id = activeRooms()[0].id
-  const before = { ...activeRooms()[0] }
+  useProject.getState().addRoom({ x: 0, y: 0, w: 12, d: 12 }) // below the 36" minimum
+  const r = activeRooms()[0]
+  const bb = roomBounds(r)
+  console.log(`  drew 12x12 → bbox ${bb.w}x${bb.d} (min ${UNITS.MIN_ROOM_IN})`)
+  check('bbox clamped to MIN, never inverted', bb.w === UNITS.MIN_ROOM_IN && bb.d === UNITS.MIN_ROOM_IN)
+}
 
-  useProject.getState().updateRoom(id, { w: 12, d: 12 }) // below the 36" minimum
-  const clamped = activeRooms()[0]
-  console.log(`  requested 12x12 → stored ${clamped.w}x${clamped.d} (min ${UNITS.MIN_ROOM_IN})`)
-  check('width clamped to MIN, never inverted', clamped.w === UNITS.MIN_ROOM_IN)
-  check('depth clamped to MIN, never inverted', clamped.d === UNITS.MIN_ROOM_IN)
+// ── Test 6 — free corner move: only that corner moves; undo exact ──
+console.log('\nTest 6 — move ONE corner freely; the rest stay; undo restores')
+{
+  useProject.getState().setProject(makeDefaultProject())
+  useProject.getState().addRoom({ x: 0, y: 0, w: 144, d: 144 })
+  useProject.temporal.getState().clear()
+  const room = activeRooms()[0]
+  const before = room.points.map((p) => ({ ...p }))
+
+  // Move corner 2 (bottom-right) out by (60, 30) → an angled wall.
+  const moved = before.map((p, i) => (i === 2 ? { x: p.x + 60, y: p.y + 30 } : p))
+  useProject.getState().updateRoom(room.id, { points: moved })
+  const after = activeRooms()[0].points
+  console.log(`  corner 2: (${before[2].x},${before[2].y}) → (${after[2].x},${after[2].y})`)
+  check('corner 2 moved', after[2].x === before[2].x + 60 && after[2].y === before[2].y + 30)
+  check('corners 0,1,3 unchanged', [0, 1, 3].every((i) => after[i].x === before[i].x && after[i].y === before[i].y))
 
   useProject.temporal.getState().undo()
-  const restored = activeRooms()[0]
-  check('undo restores exact prior w', restored.w === before.w, `${restored.w} vs ${before.w}`)
-  check('undo restores exact prior d', restored.d === before.d, `${restored.d} vs ${before.d}`)
+  const restored = activeRooms()[0].points
+  check('undo restores exact prior corner', restored[2].x === before[2].x && restored[2].y === before[2].y)
 }
 
 // ── Overlap vs adjacency sanity ───────────────────────────
