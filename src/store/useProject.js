@@ -21,6 +21,7 @@ export function makeLevel({ name, index }) {
     floorElevationIn: 0, // set by recomputeElevations
     ceilingHeightIn: index < 0 ? DEFAULTS.BASEMENT_CEILING_IN : DEFAULTS.CEILING_HEIGHT_IN,
     rooms: [],
+    walls: [], // freestanding wall segments (not tied to a room)
     openings: [],
     fixtures: [],
     runs: [],
@@ -80,7 +81,11 @@ export function migrateProject(project) {
   if (!project?.levels) return project
   return {
     ...project,
-    levels: project.levels.map((l) => ({ ...l, rooms: (l.rooms || []).map(migrateRoom) })),
+    levels: project.levels.map((l) => ({
+      ...l,
+      rooms: (l.rooms || []).map(migrateRoom),
+      walls: l.walls || [],
+    })),
   }
 }
 function migrateRoom(r) {
@@ -249,6 +254,59 @@ export const useProject = create(
               levels: mapLevel(s.project.levels, levelId, (l) => ({
                 ...l,
                 rooms: l.rooms.filter((r) => r.id !== roomId),
+              })),
+            }),
+          }
+        }),
+
+      // ── Freestanding walls (on the active level) ────────
+      addWall: (seg) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          const wall = {
+            id: uid(),
+            x1: Math.round(seg.x1),
+            y1: Math.round(seg.y1),
+            x2: Math.round(seg.x2),
+            y2: Math.round(seg.y2),
+            thicknessIn: DEFAULTS.INTERIOR_WALL_IN,
+          }
+          return {
+            project: touch(s.project, {
+              levels: mapLevel(s.project.levels, levelId, (l) => ({
+                ...l,
+                walls: [...(l.walls || []), wall],
+              })),
+            }),
+            _lastWallId: wall.id,
+          }
+        }),
+
+      updateWall: (wallId, patch) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          const clean = {}
+          for (const [k, v] of Object.entries(patch)) {
+            clean[k] = ['x1', 'y1', 'x2', 'y2'].includes(k) ? Math.round(v) : v
+          }
+          return {
+            project: touch(s.project, {
+              levels: mapLevel(s.project.levels, levelId, (l) => ({
+                ...l,
+                walls: (l.walls || []).map((w) => (w.id === wallId ? { ...w, ...clean } : w)),
+              })),
+            }),
+          }
+        }),
+
+      removeWall: (wallId) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          return {
+            project: touch(s.project, {
+              levels: mapLevel(s.project.levels, levelId, (l) => ({
+                ...l,
+                walls: (l.walls || []).filter((w) => w.id !== wallId),
               })),
             }),
           }

@@ -244,6 +244,59 @@ export function roomsOverlap(A, B) {
   return false
 }
 
+// ── Rectilinear corner carving ────────────────────────────
+// Dragging a corner to D keeps all walls axis-aligned by replacing that one
+// vertex with an L-notch: two new joints (one on each adjacent wall) plus the
+// dragged inner corner. No diagonal walls, ever. cleanPolygon() collapses any
+// joints that ended up collinear (e.g. a straight-along-the-wall drag).
+export function carveCorner(points, i, D) {
+  const n = points.length
+  const A = points[(i - 1 + n) % n]
+  const V = points[i]
+  const aVertical = A.x === V.x // incoming wall A→V is vertical
+  let j1
+  let j2
+  if (aVertical) {
+    // A→V vertical, V→B horizontal.
+    j1 = { x: V.x, y: D.y }
+    j2 = { x: D.x, y: V.y }
+  } else {
+    // A→V horizontal, V→B vertical.
+    j1 = { x: D.x, y: V.y }
+    j2 = { x: V.x, y: D.y }
+  }
+  return [...points.slice(0, i), j1, { x: D.x, y: D.y }, j2, ...points.slice(i + 1)]
+}
+
+/** Drop duplicate and collinear vertices so the polygon stays minimal. */
+export function cleanPolygon(points) {
+  const dedup = points.filter((p, i) => {
+    const q = points[(i - 1 + points.length) % points.length]
+    return !(p.x === q.x && p.y === q.y)
+  })
+  if (dedup.length < 3) return points
+  const out = []
+  for (let i = 0; i < dedup.length; i++) {
+    const a = dedup[(i - 1 + dedup.length) % dedup.length]
+    const b = dedup[i]
+    const c = dedup[(i + 1) % dedup.length]
+    const cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+    if (cross !== 0) out.push(b) // keep only real corners
+  }
+  return out.length >= 3 ? out : dedup
+}
+
+/** True when every edge is horizontal or vertical (no diagonals). */
+export function isRectilinear(points) {
+  const n = points.length
+  for (let i = 0; i < n; i++) {
+    const a = points[i]
+    const b = points[(i + 1) % n]
+    if (a.x !== b.x && a.y !== b.y) return false
+  }
+  return true
+}
+
 export function overlappingRoomIds(rooms) {
   const bad = new Set()
   for (let i = 0; i < rooms.length; i++) {

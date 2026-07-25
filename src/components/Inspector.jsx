@@ -21,14 +21,41 @@ export default function Inspector() {
   const activeId = useSession((s) => s.activeId)
 
   const selectedId = useEditor((s) => s.selectedId)
+  const selectedWallId = useEditor((s) => s.selectedWallId)
   const active = project.levels.find((l) => l.id === project.view.activeLevelId)
   const isBasement = active && active.index < 0
   const rooms = active ? active.rooms : []
   const room = rooms.find((r) => r.id === selectedId)
   const overlapping = room ? overlappingRoomIds(rooms).has(room.id) : false
+  const wall = active ? (active.walls || []).find((w) => w.id === selectedWallId) : null
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
+      {/* Selected freestanding wall */}
+      {wall && (
+        <Section title="Wall">
+          <div className="flex items-center justify-between text-xs text-muted">
+            <span>Length</span>
+            <span className="num text-ink">
+              {formatFeetInches(Math.abs(wall.x2 - wall.x1) + Math.abs(wall.y2 - wall.y1))}
+            </span>
+          </div>
+          <p className="text-[11px] leading-tight text-muted">
+            Drag the wall to move it; drag an endpoint to change its length.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              useProject.getState().removeWall(wall.id)
+              useEditor.getState().clearSelection()
+            }}
+            className="flex items-center justify-center gap-1.5 rounded border border-line px-2 py-1.5 text-xs text-alert hover:bg-alert/10"
+          >
+            <Trash2 size={14} strokeWidth={1.75} /> Delete wall
+          </button>
+        </Section>
+      )}
+
       {/* Selected room */}
       {room && (
         <Section title="Room">

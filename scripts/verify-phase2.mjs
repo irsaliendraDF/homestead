@@ -1,6 +1,13 @@
 // Phase 2 — THE GATE. Runs the five acceptance tests from the kickoff doc and
 // prints the actual outputs. Run: node scripts/verify-phase2.mjs
-import { resolveWalls, roomsOverlap, roomBounds } from '../src/lib/geometry.js'
+import {
+  resolveWalls,
+  roomsOverlap,
+  roomBounds,
+  carveCorner,
+  cleanPolygon,
+  isRectilinear,
+} from '../src/lib/geometry.js'
 import { useProject, makeDefaultProject } from '../src/store/useProject.js'
 import { UNITS } from '../src/config.js'
 
@@ -111,6 +118,38 @@ console.log('\nBonus — adjacency is not overlap; real overlap is flagged')
     !roomsOverlap({ id: 'A', x: 0, y: 0, w: 144, d: 144 }, { id: 'B', x: 144, y: 0, w: 144, d: 144 }))
   check('interpenetrating rooms ARE overlap',
     roomsOverlap({ id: 'A', x: 0, y: 0, w: 144, d: 144 }, { id: 'B', x: 100, y: 0, w: 144, d: 144 }))
+}
+
+// ── Test 7 — carving a corner makes a RECTILINEAR L (no diagonals) ──
+console.log('\nTest 7 — drag a corner inward → L-shape, all walls square')
+{
+  const rect = [
+    { x: 0, y: 0 },
+    { x: 144, y: 0 },
+    { x: 144, y: 144 },
+    { x: 0, y: 144 },
+  ]
+  const carved = cleanPolygon(carveCorner(rect, 2, { x: 100, y: 100 }))
+  console.log('  points: ' + carved.map((p) => `(${p.x},${p.y})`).join(' '))
+  check('L-shape has 6 corners', carved.length === 6, `got ${carved.length}`)
+  check('every wall is horizontal or vertical (no diagonals)', isRectilinear(carved))
+  check('the pulled inner corner (100,100) is present', carved.some((p) => p.x === 100 && p.y === 100))
+
+  // Dragging straight along a wall collapses back (no stray joints).
+  const straight = cleanPolygon(carveCorner(rect, 2, { x: 144, y: 90 }))
+  check('axis-aligned drag leaves a clean polygon', isRectilinear(straight) && straight.length <= 4)
+}
+
+// ── Test 8 — freestanding walls ───────────────────────────
+console.log('\nTest 8 — add a freestanding wall')
+{
+  useProject.getState().setProject(makeDefaultProject())
+  useProject.getState().addWall({ x1: 12.4, y1: 24, x2: 132.6, y2: 24 })
+  const p = useProject.getState().project
+  const walls = p.levels.find((l) => l.id === p.view.activeLevelId).walls
+  console.log(`  walls: ${walls.length}, first = ${JSON.stringify(walls[0] && { x1: walls[0].x1, x2: walls[0].x2 })}`)
+  check('one wall added', walls.length === 1)
+  check('wall coords are integers', walls[0] && Number.isInteger(walls[0].x1) && Number.isInteger(walls[0].x2))
 }
 
 console.log('')

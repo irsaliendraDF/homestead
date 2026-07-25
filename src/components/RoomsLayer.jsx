@@ -20,9 +20,12 @@ const ptsStr = (pts) => pts.map((p) => `${p.x},${p.y}`).join(' ')
 export default function RoomsLayer({ zoom, plot }) {
   const level = useProject((s) => s.project.levels.find((l) => l.id === s.project.view.activeLevelId))
   const selectedId = useEditor((s) => s.selectedId)
+  const selectedWallId = useEditor((s) => s.selectedWallId)
   const preview = useEditor((s) => s.preview)
   const previewId = useEditor((s) => s.previewId)
+  const wallPreview = useEditor((s) => s.wallPreview)
   const guides = useEditor((s) => s.guides)
+  const freeWalls = level.walls || []
 
   const effective = effectiveRooms(level.rooms, { preview, previewId })
 
@@ -74,6 +77,54 @@ export default function RoomsLayer({ zoom, plot }) {
           )
         })}
       </g>
+
+      {/* Freestanding walls (hit targets + poché). */}
+      {freeWalls.map((w) => {
+        const r = wallRect(w)
+        const sel = w.id === selectedWallId
+        return (
+          <g key={w.id}>
+            <rect
+              data-wall-id={w.id}
+              x={r.x}
+              y={r.y}
+              width={r.width}
+              height={r.height}
+              fill={COLOR.ink}
+              style={{ pointerEvents: 'all', cursor: 'move' }}
+            />
+            {sel && (
+              <>
+                <rect x={r.x} y={r.y} width={r.width} height={r.height} fill="none" stroke={COLOR.accent} strokeWidth={1.5} vectorEffect="non-scaling-stroke" style={{ pointerEvents: 'none' }} />
+                {[
+                  { end: 0, x: w.x1, y: w.y1 },
+                  { end: 1, x: w.x2, y: w.y2 },
+                ].map((h) => (
+                  <rect
+                    key={h.end}
+                    data-wall-id={w.id}
+                    data-wall-end={h.end}
+                    x={h.x - (8 / zoom) / 2}
+                    y={h.y - (8 / zoom) / 2}
+                    width={8 / zoom}
+                    height={8 / zoom}
+                    fill={COLOR.accent}
+                    stroke={COLOR.panel}
+                    strokeWidth={1.25}
+                    vectorEffect="non-scaling-stroke"
+                    style={{ pointerEvents: 'all', cursor: 'grab' }}
+                  />
+                ))}
+              </>
+            )}
+          </g>
+        )
+      })}
+
+      {/* Wall draw/edit preview. */}
+      {wallPreview && (
+        <line x1={wallPreview.x1} y1={wallPreview.y1} x2={wallPreview.x2} y2={wallPreview.y2} stroke={COLOR.accent} strokeWidth={4} strokeLinecap="square" strokeDasharray="8 6" style={{ pointerEvents: 'none' }} />
+      )}
 
       {/* Overlap outlines. */}
       <g style={{ pointerEvents: 'none' }}>

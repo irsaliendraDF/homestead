@@ -52,10 +52,11 @@ export default function App() {
         useEditor.getState().setTool('select')
         useEditor.getState().clearSelection()
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        const id = useEditor.getState().selectedId
-        if (id) {
+        const { selectedId, selectedWallId } = useEditor.getState()
+        if (selectedId || selectedWallId) {
           e.preventDefault()
-          useProject.getState().removeRoom(id)
+          if (selectedId) useProject.getState().removeRoom(selectedId)
+          if (selectedWallId) useProject.getState().removeWall(selectedWallId)
           useEditor.getState().clearSelection()
         }
       }

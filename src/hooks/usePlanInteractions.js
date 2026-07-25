@@ -4,13 +4,19 @@ import { useViewport } from '../store/useViewport.js'
 import { useEditor } from '../store/useEditor.js'
 import { screenToWorld } from '../lib/viewport.js'
 import { snapCandidates, snapAxis } from '../lib/snapping.js'
-import { roomPolygon } from '../lib/geometry.js'
+import { roomPolygon, carveCorner, cleanPolygon } from '../lib/geometry.js'
 
-// Pointer interaction for the plan canvas: pan (space/middle-drag), draw a room
-// (rectangle → 4-point polygon), move a room, move a single corner (vertex), or
-// move a whole wall (edge). Snapping is applied live; integer rounding on commit.
+// Pointer interaction for the plan canvas. Everything stays RECTILINEAR (no
+// diagonal walls):
+//  · draw room  — rectangle → 4-point polygon
+//  · move room  — translate the whole polygon
+//  · corner     — carve an L-notch (drag one corner, right angles preserved)
+//  · wall (edge)— slide the whole wall perpendicular to itself
+//  · draw wall  — a freestanding H/V wall segment
+//  · move/trim wall — translate, or drag an endpoint along its axis
 const SNAP_PX = 10
-const CLICK_MIN = 12 // a draw smaller than this in both axes = a click → default room
+const CLICK_MIN = 12
+const WALL_MIN = 12 // ignore near-zero wall draws
 
 export function usePlanInteractions(svgRef, spaceRef) {
   const it = useRef(null)
@@ -41,13 +47,36 @@ export function usePlanInteractions(svgRef, spaceRef) {
       svgRef.current.setPointerCapture(e.pointerId)
       return
     }
+    if (tool === 'wall') {
+      it.current = { mode: 'wall-draw', start }
+      svgRef.current.setPointerCapture(e.pointerId)
+      return
+    }
 
-    const roomId = e.target.getAttribute?.('data-room-id')
-    const vertex = e.target.getAttribute?.('data-vertex')
-    const edge = e.target.getAttribute?.('data-edge')
+    const el = e.target
+    const roomId = el.getAttribute?.('data-room-id')
+    const vertex = el.getAttribute?.('data-vertex')
+    const edge = el.getAttribute?.('data-edge')
+    const wallId = el.getAttribute?.('data-wall-id')
+    const wallEnd = el.getAttribute?.('data-wall-end')
     const level = activeLevel()
-    const room = roomId ? level.rooms.find((r) => r.id === roomId) : null
 
+    if (wallId && wallEnd != null) {
+      const wall = level.walls.find((w) => w.id === wallId)
+      useEditor.getState().selectWall(wallId)
+      it.current = { mode: 'wall-end', wallId, end: Number(wallEnd), orig: { ...wall }, start }
+      svgRef.current.setPointerCapture(e.pointerId)
+      return
+    }
+    if (wallId) {
+      const wall = level.walls.find((w) => w.id === wallId)
+      useEditor.getState().selectWall(wallId)
+      it.current = { mode: 'wall-move', wallId, orig: { ...wall }, start }
+      svgRef.current.setPointerCapture(e.pointerId)
+      return
+    }
+
+    const room = roomId ? level.rooms.find((r) => r.id === roomId) : null
     if (room && vertex != null) {
       useEditor.getState().select(roomId)
       it.current = { mode: 'vertex', roomId, index: Number(vertex), orig: roomPolygon(room), start }
@@ -108,33 +137,92 @@ export function usePlanInteractions(svgRef, spaceRef) {
     }
 
     if (cur.mode === 'vertex') {
+      // Carve an L-notch: the dragged corner stays rectilinear via 2 joints.
       const o = cur.orig[cur.index]
       const nx = o.x + (p.x - cur.start.x)
       const ny = o.y + (p.y - cur.start.y)
       const sx = snapAxis([nx], cand.xs, thr)
       const sy = snapAxis([ny], cand.ys, thr)
-      const points = cur.orig.map((v, i) =>
-        i === cur.index ? { x: nx + sx.delta, y: ny + sy.delta } : v
-      )
+      const D = { x: nx + sx.delta, y: ny + sy.delta }
+      const points = carveCorner(cur.orig, cur.index, D)
       useEditor.getState().setPreview({ points }, guides(sx, sy), cur.roomId)
       return
     }
 
     if (cur.mode === 'edge') {
+      // Slide the whole wall perpendicular to itself (keeps everything square).
       const i = cur.index
       const j = (i + 1) % cur.orig.length
+      const A = cur.orig[i]
+      const B = cur.orig[j]
+      const horizontal = A.y === B.y
+      let points
+      let g
+      if (horizontal) {
+        const ny = A.y + (p.y - cur.start.y)
+        const sy = snapAxis([ny], cand.ys, thr)
+        const y = ny + sy.delta
+        points = cur.orig.map((v, k) => (k === i || k === j ? { x: v.x, y } : v))
+        g = { xs: [], ys: sy.guide != null ? [sy.guide] : [] }
+      } else {
+        const nx = A.x + (p.x - cur.start.x)
+        const sx = snapAxis([nx], cand.xs, thr)
+        const x = nx + sx.delta
+        points = cur.orig.map((v, k) => (k === i || k === j ? { x, y: v.y } : v))
+        g = { xs: sx.guide != null ? [sx.guide] : [], ys: [] }
+      }
+      useEditor.getState().setPreview({ points }, g, cur.roomId)
+      return
+    }
+
+    if (cur.mode === 'wall-draw') {
+      // Constrain to horizontal or vertical — whichever the drag favors.
+      const sx = snapAxis([p.x], cand.xs, thr)
+      const sy = snapAxis([p.y], cand.ys, thr)
+      const ex = p.x + sx.delta
+      const ey = p.y + sy.delta
+      const horizontal = Math.abs(ex - cur.start.x) >= Math.abs(ey - cur.start.y)
+      const seg = horizontal
+        ? { x1: cur.start.x, y1: cur.start.y, x2: ex, y2: cur.start.y }
+        : { x1: cur.start.x, y1: cur.start.y, x2: cur.start.x, y2: ey }
+      useEditor.getState().setWallPreview(seg, horizontal ? guides(sx, { guide: null }) : guides({ guide: null }, sy))
+      return
+    }
+
+    if (cur.mode === 'wall-move') {
       const dx = p.x - cur.start.x
       const dy = p.y - cur.start.y
-      const a = { x: cur.orig[i].x + dx, y: cur.orig[i].y + dy }
-      const b = { x: cur.orig[j].x + dx, y: cur.orig[j].y + dy }
-      const sx = snapAxis([a.x, b.x], cand.xs, thr)
-      const sy = snapAxis([a.y, b.y], cand.ys, thr)
-      const points = cur.orig.map((v, k) => {
-        if (k === i) return { x: a.x + sx.delta, y: a.y + sy.delta }
-        if (k === j) return { x: b.x + sx.delta, y: b.y + sy.delta }
-        return v
-      })
-      useEditor.getState().setPreview({ points }, guides(sx, sy), cur.roomId)
+      const o = cur.orig
+      const seg = { x1: o.x1 + dx, y1: o.y1 + dy, x2: o.x2 + dx, y2: o.y2 + dy }
+      const sx = snapAxis([seg.x1, seg.x2], cand.xs, thr)
+      const sy = snapAxis([seg.y1, seg.y2], cand.ys, thr)
+      useEditor.getState().setWallPreview(
+        { x1: seg.x1 + sx.delta, y1: seg.y1 + sy.delta, x2: seg.x2 + sx.delta, y2: seg.y2 + sy.delta },
+        guides(sx, sy)
+      )
+      return
+    }
+
+    if (cur.mode === 'wall-end') {
+      // Drag one endpoint along the wall's own axis (change its length).
+      const o = cur.orig
+      const horizontal = o.y1 === o.y2
+      const seg = { ...o }
+      if (horizontal) {
+        const nx = (cur.end === 0 ? o.x1 : o.x2) + (p.x - cur.start.x)
+        const sx = snapAxis([nx], cand.xs, thr)
+        const x = nx + sx.delta
+        if (cur.end === 0) seg.x1 = x
+        else seg.x2 = x
+        useEditor.getState().setWallPreview(seg, guides(sx, { guide: null }))
+      } else {
+        const ny = (cur.end === 0 ? o.y1 : o.y2) + (p.y - cur.start.y)
+        const sy = snapAxis([ny], cand.ys, thr)
+        const y = ny + sy.delta
+        if (cur.end === 0) seg.y1 = y
+        else seg.y2 = y
+        useEditor.getState().setWallPreview(seg, guides({ guide: null }, sy))
+      }
     }
   }
 
@@ -150,7 +238,9 @@ export function usePlanInteractions(svgRef, spaceRef) {
     if (cur.mode === 'pan') return
 
     const preview = useEditor.getState().preview
+    const wallPreview = useEditor.getState().wallPreview
     useEditor.getState().clearPreview()
+    useEditor.getState().clearWallPreview()
 
     if (cur.mode === 'draw') {
       const bb = preview ? bounds(preview.points) : null
@@ -160,14 +250,30 @@ export function usePlanInteractions(svgRef, spaceRef) {
       } else {
         useProject.getState().addRoom({ x: bb.minX, y: bb.minY, w: bb.maxX - bb.minX, d: bb.maxY - bb.minY })
       }
-      const newId = useProject.getState()._lastRoomId
       useEditor.getState().setTool('select')
-      useEditor.getState().select(newId)
+      useEditor.getState().select(useProject.getState()._lastRoomId)
+      return
+    }
+
+    if (cur.mode === 'wall-draw') {
+      if (wallPreview) {
+        const len = Math.abs(wallPreview.x2 - wallPreview.x1) + Math.abs(wallPreview.y2 - wallPreview.y1)
+        if (len >= WALL_MIN) {
+          useProject.getState().addWall(wallPreview)
+          useEditor.getState().setTool('select')
+          useEditor.getState().selectWall(useProject.getState()._lastWallId)
+        }
+      }
+      return
+    }
+
+    if ((cur.mode === 'wall-move' || cur.mode === 'wall-end') && wallPreview) {
+      useProject.getState().updateWall(cur.wallId, wallPreview)
       return
     }
 
     if (preview && (cur.mode === 'move' || cur.mode === 'vertex' || cur.mode === 'edge')) {
-      useProject.getState().updateRoom(cur.roomId, { points: preview.points })
+      useProject.getState().updateRoom(cur.roomId, { points: cleanPolygon(preview.points) })
     }
   }
 

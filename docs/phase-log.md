@@ -138,3 +138,11 @@ snapping keeps right angles easy.
   bounding box, floor area (approx, centerline), corner count.
 - Gate re-run PASS incl. new Test 6: moving one corner leaves the other three untouched; undo
   restores exactly.
+
+### Phase 2 follow-up 2 — rectilinear L-carving + Wall tool (Irene, 2026-07-25)
+
+Corrected corner-drag to **carve L-notches** (no diagonals). Corner drag = `carveCorner`
+(2 joints, right angles); wall drag = perpendicular slide; `cleanPolygon`/`isRectilinear`.
+Added a **freestanding Wall tool** (draw H/V, move, trim endpoints, delete; `level.walls`).
+Tests added: Test 7 (carve → rectilinear 6-corner L, no diagonals) and Test 8 (add wall).
+All gate + new tests PASS; build clean. **Merged phase-2 → main per Irene ("push to main").**

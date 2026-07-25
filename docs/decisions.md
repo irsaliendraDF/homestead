@@ -48,3 +48,16 @@ at her direction.
   precise per-side wall inset from the kickoff doc applies cleanly to rectangles only; for
   arbitrary polygons it's an approximation. Flagged, not hidden.
 - Backward-compatible: old rooms stored as x/y/w/d are migrated to points on load.
+
+### Correction (same day): RECTILINEAR only, no diagonals
+
+Irene clarified: dragging a corner should carve a proper L (add two joints, keep right
+angles), never bend a wall diagonally. And she wants no diagonal walls at all. So:
+- **Corner drag = L-notch carve** (`carveCorner`): the dragged vertex is replaced by two
+  joints + the inner corner, keeping every wall horizontal/vertical. `cleanPolygon` collapses
+  joints that end up collinear (e.g. a drag straight along a wall). `isRectilinear` guards it.
+- **Wall (edge) drag = perpendicular slide** — a whole wall moves square, never skews.
+- Diagonal-wall support in `resolveWalls` is now effectively dead code (kept, harmless).
+- **Freestanding Wall tool added** (Irene's ask): draw an H/V wall segment (`level.walls`),
+  move it, drag an endpoint to trim, delete. Thickness = interior (4"). Shared walls between
+  rooms are fine and already handled by the centerline model.
