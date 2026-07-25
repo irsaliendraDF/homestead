@@ -87,17 +87,31 @@ export function migrateProject(project) {
       rooms: (l.rooms || []).map(migrateRoom),
       walls: l.walls || [],
       mergedPairs: l.mergedPairs || [],
-      openings: l.openings || [],
+      openings: (l.openings || []).map((o) => ({
+        style: o.style ?? OPENING_STYLES[o.type]?.[0] ?? 'single',
+        hinge: o.hinge ?? 'start',
+        swing: o.swing ?? 'in',
+        ...o,
+      })),
     })),
   }
 }
 
-// Default size (inches) per opening type.
+// Available styles per opening type (modern set). First entry is the default.
+export const OPENING_STYLES = {
+  door: ['single', 'double', 'sliding', 'pocket', 'bifold'],
+  window: ['picture', 'casement', 'doublehung', 'sliding', 'awning'],
+  archway: ['open'],
+  garage: ['sectional'],
+}
+
+// Default size (inches) + style per opening type.
 export function openingDefaults(type) {
-  if (type === 'window') return { ...DEFAULTS.WINDOW }
-  if (type === 'garage') return { widthIn: 9 * 12, heightIn: 7 * 12, sillHeightIn: 0 }
-  if (type === 'archway') return { widthIn: 48, heightIn: 84, sillHeightIn: 0 }
-  return { ...DEFAULTS.DOOR, sillHeightIn: 0 } // door
+  const style = OPENING_STYLES[type][0]
+  if (type === 'window') return { ...DEFAULTS.WINDOW, style }
+  if (type === 'garage') return { widthIn: 9 * 12, heightIn: 7 * 12, sillHeightIn: 0, style }
+  if (type === 'archway') return { widthIn: 48, heightIn: 84, sillHeightIn: 0, style }
+  return { ...DEFAULTS.DOOR, sillHeightIn: 0, style } // door
 }
 
 const mergeKey = (a, b) => [a, b].sort().join('|')
@@ -284,6 +298,9 @@ export const useProject = create(
           const opening = {
             id: uid(),
             type,
+            style: size.style ?? d.style,
+            hinge: size.hinge ?? 'start', // which end the hinge is on: 'start' | 'end'
+            swing: size.swing ?? 'in', // which way it opens: 'in' (into room) | 'out'
             kind: host.kind,
             roomId: host.roomId,
             edgeIndex: host.edgeIndex,

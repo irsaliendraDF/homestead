@@ -218,3 +218,16 @@ past wall end clamps ✓; moving parent room carries openings ✓. Build clean.
 **Scope guard:** voids + simple reveals only — no glass materials, frames, or hardware.
 
 **Not merged to `main`** — pending Irene's look at openings (2D symbols + 3D holes) on preview.
+
+### Phase 4 follow-up — swing control + modern styles (Irene, 2026-07-25)
+
+- **Swing direction:** doors/windows carry `hinge` ('start'|'end') and `swing` ('in'|'out').
+  Inspector shows "Opens in/out" and "Hinge left/right" flips for hinged styles. 2D symbol
+  respects them (hinge point + swing normal).
+- **Modern styles** via `OPENING_STYLES` + per-opening `style`:
+  - Doors: single swing, double / French, sliding, pocket, bi-fold.
+  - Windows: picture (fixed), casement, double-hung, sliding, awning.
+  - Each has its own 2D symbol (Leaf/arc, DoubleDoor, Sliding panels, Pocket cavity, Bifold
+    zigzag, Glass double-line, DoubleHung rail, Awning chevron). Style picker in inspector.
+- 3D unchanged (still a correct hole per type/size — voids only). Existing openings migrated to
+  the new fields. Build + verify-phase4 pass.

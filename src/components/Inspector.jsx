@@ -1,5 +1,5 @@
 import { FilePlus2, Copy, Trash2, Check } from 'lucide-react'
-import { useProject } from '../store/useProject.js'
+import { useProject, OPENING_STYLES } from '../store/useProject.js'
 import { useEditor } from '../store/useEditor.js'
 import {
   useSession,
@@ -14,6 +14,24 @@ import { roomAreaSqft, roomBounds, roomPolygon, overlappingRoomIds, sharedPairs 
 import DimensionInput from './DimensionInput.jsx'
 
 const k2 = (a, b) => [a, b].sort().join('|')
+
+const STYLE_LABELS = {
+  single: 'Single swing',
+  double: 'Double / French',
+  sliding: 'Sliding',
+  pocket: 'Pocket',
+  bifold: 'Bi-fold',
+  picture: 'Picture (fixed)',
+  casement: 'Casement',
+  doublehung: 'Double-hung',
+  awning: 'Awning',
+  open: 'Open',
+  sectional: 'Sectional',
+}
+const SWING_STYLES = new Set(['single', 'double', 'casement', 'awning'])
+const HINGE_STYLES = new Set(['single', 'casement'])
+const isHinged = (o) => SWING_STYLES.has(o.style)
+const hasHinge = (o) => HINGE_STYLES.has(o.style)
 
 // Right-hand inspector. Phase 1 scope: project management, plot size, and the
 // active level's settings. Room properties arrive in Phase 2.
@@ -66,6 +84,53 @@ export default function Inspector() {
               ))}
             </select>
           </label>
+
+          {OPENING_STYLES[opening.type].length > 1 && (
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-muted">Style</span>
+              <select
+                value={opening.style}
+                onChange={(e) => useProject.getState().updateOpening(opening.id, { style: e.target.value })}
+                className="w-full rounded border border-line bg-canvas px-2 py-1 text-sm capitalize text-ink"
+              >
+                {OPENING_STYLES[opening.type].map((st) => (
+                  <option key={st} value={st} className="capitalize">
+                    {STYLE_LABELS[st] || st}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {isHinged(opening) && (
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-muted">Swing</span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    useProject.getState().updateOpening(opening.id, { swing: opening.swing === 'in' ? 'out' : 'in' })
+                  }
+                  className="flex-1 rounded border border-line px-2 py-1 text-[11px] text-ink hover:bg-accentSoft"
+                >
+                  {opening.swing === 'in' ? 'Opens in ↩' : 'Opens out ↪'}
+                </button>
+                {hasHinge(opening) && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      useProject
+                        .getState()
+                        .updateOpening(opening.id, { hinge: opening.hinge === 'start' ? 'end' : 'start' })
+                    }
+                    className="flex-1 rounded border border-line px-2 py-1 text-[11px] text-ink hover:bg-accentSoft"
+                  >
+                    Hinge {opening.hinge === 'start' ? 'left' : 'right'} ⇄
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-2">
             <DimensionInput label="Width" valueIn={opening.widthIn} min={6} onCommit={(v) => useProject.getState().updateOpening(opening.id, { widthIn: v })} />
