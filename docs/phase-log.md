@@ -161,3 +161,31 @@ divider — no way to join them. Fixes:
 - Tests 9 (join removes shared wall, 6 outer remain) + 10 (tolerance) PASS.
 - Note: cleanest L via two rooms needs them placed FLUSH then joined; a single room can also
   be carved into an L by dragging a corner. Union of genuinely-overlapping rooms not done.
+
+## Phase 3 — 3D extrusion — 2026-07-25 — branch `phase-3`
+
+**Deps added** (all from §1): three@0.169, @react-three/fiber@8, @react-three/drei@9.
+
+**Delivered**
+- Plan / 3D toggle in the title bar (shortcut `3`). Only one canvas mounts at a time — the 3D
+  Canvas lazy-loads (three.js split into its own 850 kB chunk) and fully unmounts on Plan, so
+  OrbitControls never coexists with the SVG editor (gotcha #6/#7).
+- `Scene3D`: walls extruded from `resolveWalls(rooms, merged)` + freestanding walls, per level
+  at the level's ceiling height and floor elevation. Joined rooms drop their divider in 3D too.
+- Floor slabs per level (thin boxes just under the floor plane); optional ceiling planes
+  (toggle, off by default so you can see in). Level gaps = FLOOR_ASSEMBLY_IN → no z-fighting.
+- OrbitControls with damping; content translated so plot centre sits at the origin. Soft
+  lighting (ambient + one shadow-casting directional), matte off-white materials, drei Grid at
+  grade + transparent shadow catcher. No HDRI, no textures.
+- 3D controls (bottom-left): show all levels vs active, dimension labels (drei `<Html>`,
+  exterior wall lengths), ceilings.
+- Single coord convention via `coords` model (plan x,y → three x,z; elevation → y), 1 unit=1 in.
+
+**Acceptance (headless build passes; visual to confirm on preview)**
+- 2D edit → switch to 3D reflects it (Scene reads the live store).
+- 3D exterior lengths come from the same `resolveWalls` as the 2D rail → match by construction.
+- Three levels stack at correct elevations; floor/ceiling gap prevents z-fighting.
+
+**Scope guard:** solid walls only — no doors/windows (Phase 4), no roof (Phase 7), no furniture.
+
+**Not merged to `main`** — pending Irene's look at the 3D on the phase-3 preview.

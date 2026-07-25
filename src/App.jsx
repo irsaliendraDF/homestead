@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, lazy, Suspense } from 'react'
 import { useStore } from 'zustand'
 import { Undo2, Redo2 } from 'lucide-react'
 import { useProject } from './store/useProject.js'
@@ -13,10 +13,16 @@ import Inspector from './components/Inspector.jsx'
 import ToolRail from './components/ToolRail.jsx'
 import RoomLabels from './components/RoomLabels.jsx'
 import DragDimensions from './components/DragDimensions.jsx'
+import ViewToggle from './components/ViewToggle.jsx'
+import Controls3D from './components/Controls3D.jsx'
+
+// Lazy so three.js only loads when you actually enter the 3D view.
+const Scene3D = lazy(() => import('./components/Scene3D.jsx'))
 
 export default function App() {
   const name = useProject((s) => s.project.name)
   const ready = useSession((s) => s.ready)
+  const viewMode = useEditor((s) => s.viewMode)
   const canUndo = useStore(useProject.temporal, (s) => s.pastStates.length > 0)
   const canRedo = useStore(useProject.temporal, (s) => s.futureStates.length > 0)
   const canvasAreaRef = useRef(null)
@@ -45,8 +51,11 @@ export default function App() {
         }
         return
       }
-      // Tool + selection shortcuts (no modifier).
-      if (e.key === 'r' || e.key === 'R') useEditor.getState().setTool('room')
+      // View + tool + selection shortcuts (no modifier).
+      if (e.key === '3') {
+        const m = useEditor.getState().viewMode
+        useEditor.getState().setViewMode(m === '3d' ? 'plan' : '3d')
+      } else if (e.key === 'r' || e.key === 'R') useEditor.getState().setTool('room')
       else if (e.key === 'v' || e.key === 'V') useEditor.getState().setTool('select')
       else if (e.key === 'Escape') {
         useEditor.getState().setTool('select')
@@ -73,7 +82,9 @@ export default function App() {
           <span className="text-sm font-medium tracking-tight text-muted">Homestead</span>
           <span className="font-display text-lg italic leading-none">{name}</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-3">
+          {ready && <ViewToggle />}
+          <div className="flex items-center gap-1">
           <button
             type="button"
             aria-label="Undo"
@@ -94,6 +105,7 @@ export default function App() {
           >
             <Redo2 size={16} strokeWidth={1.75} />
           </button>
+          </div>
         </div>
       </header>
 
@@ -106,11 +118,28 @@ export default function App() {
             <>
               <LevelTabs />
               <div ref={canvasAreaRef} className="relative min-h-0 flex-1 overflow-hidden bg-canvas">
-                <PlanCanvas />
-                <RoomLabels />
-                <DragDimensions />
-                <MeasurementRail />
-                <CanvasControls containerRef={canvasAreaRef} />
+                {viewMode === '3d' ? (
+                  <>
+                    <Suspense
+                      fallback={
+                        <div className="flex h-full items-center justify-center font-display text-lg italic text-muted">
+                          Building the model…
+                        </div>
+                      }
+                    >
+                      <Scene3D />
+                    </Suspense>
+                    <Controls3D />
+                  </>
+                ) : (
+                  <>
+                    <PlanCanvas />
+                    <RoomLabels />
+                    <DragDimensions />
+                    <MeasurementRail />
+                    <CanvasControls containerRef={canvasAreaRef} />
+                  </>
+                )}
               </div>
             </>
           ) : (
