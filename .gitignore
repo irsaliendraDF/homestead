@@ -5,6 +5,10 @@ node_modules/
 dist/
 dist-ssr/
 
+# vite caches
+.vite/
+**/.vite/
+
 # env — NEVER commit (Anthropic key lives here in dev)
 .env
 .env.*
