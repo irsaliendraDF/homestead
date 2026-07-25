@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useStore } from 'zustand'
 import { Undo2, Redo2 } from 'lucide-react'
 import { useProject } from './store/useProject.js'
+import { useEditor } from './store/useEditor.js'
 import { useSession, initSession } from './store/session.js'
 import { REGION } from './config.js'
 import PlanCanvas from './components/PlanCanvas.jsx'
@@ -9,6 +10,9 @@ import MeasurementRail from './components/MeasurementRail.jsx'
 import CanvasControls from './components/CanvasControls.jsx'
 import LevelTabs from './components/LevelTabs.jsx'
 import Inspector from './components/Inspector.jsx'
+import ToolRail from './components/ToolRail.jsx'
+import RoomLabels from './components/RoomLabels.jsx'
+import DragDimensions from './components/DragDimensions.jsx'
 
 export default function App() {
   const name = useProject((s) => s.project.name)
@@ -22,22 +26,38 @@ export default function App() {
     initSession()
   }, [])
 
-  // Undo/redo. Skip while typing in a field.
+  // Keyboard: undo/redo, tool switches, delete/deselect. Skip while typing.
   useEffect(() => {
     const onKey = (e) => {
       const tag = e.target?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return
       const mod = e.ctrlKey || e.metaKey
-      if (!mod) return
-      const key = e.key.toLowerCase()
-      if (key === 'z') {
-        e.preventDefault()
-        const t = useProject.temporal.getState()
-        if (e.shiftKey) t.redo()
-        else t.undo()
-      } else if (key === 'y') {
-        e.preventDefault()
-        useProject.temporal.getState().redo()
+      if (mod) {
+        const key = e.key.toLowerCase()
+        if (key === 'z') {
+          e.preventDefault()
+          const t = useProject.temporal.getState()
+          if (e.shiftKey) t.redo()
+          else t.undo()
+        } else if (key === 'y') {
+          e.preventDefault()
+          useProject.temporal.getState().redo()
+        }
+        return
+      }
+      // Tool + selection shortcuts (no modifier).
+      if (e.key === 'r' || e.key === 'R') useEditor.getState().setTool('room')
+      else if (e.key === 'v' || e.key === 'V') useEditor.getState().setTool('select')
+      else if (e.key === 'Escape') {
+        useEditor.getState().setTool('select')
+        useEditor.getState().clearSelection()
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        const id = useEditor.getState().selectedId
+        if (id) {
+          e.preventDefault()
+          useProject.getState().removeRoom(id)
+          useEditor.getState().clearSelection()
+        }
       }
     }
     window.addEventListener('keydown', onKey)
@@ -78,7 +98,7 @@ export default function App() {
 
       {/* Body: tool rail · canvas column · inspector */}
       <div className="flex min-h-0 flex-1">
-        <nav aria-label="Tools" className="w-14 shrink-0 border-r border-line bg-panel" />
+        {ready ? <ToolRail /> : <nav aria-label="Tools" className="w-14 shrink-0 border-r border-line bg-panel" />}
 
         <div className="flex min-w-0 flex-1 flex-col">
           {ready ? (
@@ -86,6 +106,8 @@ export default function App() {
               <LevelTabs />
               <div ref={canvasAreaRef} className="relative min-h-0 flex-1 overflow-hidden bg-canvas">
                 <PlanCanvas />
+                <RoomLabels />
+                <DragDimensions />
                 <MeasurementRail />
                 <CanvasControls containerRef={canvasAreaRef} />
               </div>

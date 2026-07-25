@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { temporal } from 'zundo'
-import { DEFAULTS } from '../config.js'
+import { DEFAULTS, UNITS } from '../config.js'
 
 // State mutates ONLY through the actions below. Components never set fields
 // directly — that keeps undo/redo, autosave, and future validation honest.
@@ -74,6 +74,19 @@ export function makeDefaultProject() {
 }
 
 const touch = (project, patch) => ({ ...project, ...patch, updatedAt: nowIso() })
+
+/** Immutably replace one level by id. */
+const mapLevel = (levels, levelId, fn) => levels.map((l) => (l.id === levelId ? fn(l) : l))
+
+/** Next "Room N" number from existing auto-names on a level. */
+function nextRoomNumber(rooms) {
+  let max = 0
+  for (const r of rooms) {
+    const m = /^Room (\d+)$/.exec(r.name || '')
+    if (m) max = Math.max(max, Number(m[1]))
+  }
+  return max + 1
+}
 
 // Only `project` is tracked for undo/redo. Actions and any transient UI state
 // stay out of the temporal history.
@@ -153,6 +166,67 @@ export const useProject = create(
             view: { ...s.project.view, showGhostBelow: !s.project.view.showGhostBelow },
           }),
         })),
+
+      // ── Rooms (on the active level) ─────────────────────
+      // Every stored coordinate is a rounded integer inch — no floats ever reach
+      // the store, so the shared-wall dedupe never misses by 0.0001".
+      addRoom: (partial) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          const level = s.project.levels.find((l) => l.id === levelId)
+          const n = nextRoomNumber(level.rooms)
+          const room = {
+            id: uid(),
+            name: `Room ${n}`,
+            type: null,
+            wallThicknessIn: DEFAULTS.WALL_THICKNESS_IN,
+            x: Math.round(partial.x),
+            y: Math.round(partial.y),
+            w: Math.max(UNITS.MIN_ROOM_IN, Math.round(partial.w)),
+            d: Math.max(UNITS.MIN_ROOM_IN, Math.round(partial.d)),
+          }
+          return {
+            project: touch(s.project, {
+              levels: mapLevel(s.project.levels, levelId, (l) => ({
+                ...l,
+                rooms: [...l.rooms, room],
+              })),
+            }),
+            _lastRoomId: room.id,
+          }
+        }),
+
+      updateRoom: (roomId, patch) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          const clean = {}
+          for (const [k, v] of Object.entries(patch)) {
+            clean[k] = ['x', 'y', 'w', 'd'].includes(k) ? Math.round(v) : v
+          }
+          if ('w' in clean) clean.w = Math.max(UNITS.MIN_ROOM_IN, clean.w)
+          if ('d' in clean) clean.d = Math.max(UNITS.MIN_ROOM_IN, clean.d)
+          return {
+            project: touch(s.project, {
+              levels: mapLevel(s.project.levels, levelId, (l) => ({
+                ...l,
+                rooms: l.rooms.map((r) => (r.id === roomId ? { ...r, ...clean } : r)),
+              })),
+            }),
+          }
+        }),
+
+      removeRoom: (roomId) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          return {
+            project: touch(s.project, {
+              levels: mapLevel(s.project.levels, levelId, (l) => ({
+                ...l,
+                rooms: l.rooms.filter((r) => r.id !== roomId),
+              })),
+            }),
+          }
+        }),
     }),
     {
       limit: 50, // 50-step history

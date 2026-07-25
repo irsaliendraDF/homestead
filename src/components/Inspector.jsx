@@ -1,5 +1,6 @@
 import { FilePlus2, Copy, Trash2, Check } from 'lucide-react'
 import { useProject } from '../store/useProject.js'
+import { useEditor } from '../store/useEditor.js'
 import {
   useSession,
   newProject,
@@ -7,8 +8,9 @@ import {
   switchProject,
   removeProject,
 } from '../store/session.js'
-import { REGION, UNITS } from '../config.js'
+import { REGION, UNITS, ROOM_TYPES } from '../config.js'
 import { formatFeetInches } from '../lib/units.js'
+import { roomInteriorSqft, overlappingRoomIds } from '../lib/geometry.js'
 import DimensionInput from './DimensionInput.jsx'
 
 // Right-hand inspector. Phase 1 scope: project management, plot size, and the
@@ -18,11 +20,85 @@ export default function Inspector() {
   const summaries = useSession((s) => s.summaries)
   const activeId = useSession((s) => s.activeId)
 
+  const selectedId = useEditor((s) => s.selectedId)
   const active = project.levels.find((l) => l.id === project.view.activeLevelId)
   const isBasement = active && active.index < 0
+  const rooms = active ? active.rooms : []
+  const room = rooms.find((r) => r.id === selectedId)
+  const overlapping = room ? overlappingRoomIds(rooms).has(room.id) : false
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
+      {/* Selected room */}
+      {room && (
+        <Section title="Room">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-muted">Name</span>
+            <input
+              type="text"
+              value={room.name}
+              onChange={(e) => useProject.getState().updateRoom(room.id, { name: e.target.value })}
+              className="w-full rounded border border-line bg-canvas px-2 py-1 text-sm text-ink"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-muted">Type</span>
+            <select
+              value={room.type ?? ''}
+              onChange={(e) =>
+                useProject.getState().updateRoom(room.id, { type: e.target.value || null })
+              }
+              className="w-full rounded border border-line bg-canvas px-2 py-1 text-sm text-ink"
+            >
+              <option value="">Set type</option>
+              {ROOM_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="grid grid-cols-2 gap-2">
+            <DimensionInput
+              label="Width"
+              valueIn={room.w}
+              min={UNITS.MIN_ROOM_IN}
+              onCommit={(v) => useProject.getState().updateRoom(room.id, { w: v })}
+            />
+            <DimensionInput
+              label="Depth"
+              valueIn={room.d}
+              min={UNITS.MIN_ROOM_IN}
+              onCommit={(v) => useProject.getState().updateRoom(room.id, { d: v })}
+            />
+          </div>
+
+          <div className="flex items-center justify-between text-xs text-muted">
+            <span>Interior area</span>
+            <span className="num text-ink">{roomInteriorSqft(room, rooms).toFixed(1)} sq ft</span>
+          </div>
+
+          {overlapping && (
+            <p className="rounded bg-alert/10 px-2 py-1.5 text-[11px] leading-tight text-alert">
+              These rooms overlap — drag one apart.
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              useProject.getState().removeRoom(room.id)
+              useEditor.getState().clearSelection()
+            }}
+            className="flex items-center justify-center gap-1.5 rounded border border-line px-2 py-1.5 text-xs text-alert hover:bg-alert/10"
+          >
+            <Trash2 size={14} strokeWidth={1.75} /> Delete room
+          </button>
+        </Section>
+      )}
+
       {/* Project */}
       <Section title="Project">
         <label className="flex flex-col gap-1">

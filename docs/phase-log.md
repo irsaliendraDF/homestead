@@ -81,5 +81,42 @@ real proof is clicking through the running app. To confirm on the preview/localh
 - Added dependency `idb-keyval@^6` (from the §1 stack — allowed, not a new choice).
 - Scope guard honored: NO rooms yet (Phase 2 gate).
 
-**Not merged to `main`** — pending Irene's browser confirmation of the three interactive
-criteria on the phase-1 preview.
+Phase 1 confirmed by Irene in-browser (all three interactive criteria pass); merged to `main`.
+
+## Phase 2 — 🚧 GATE: rooms, snapping, wall resolution — 2026-07-25 — branch `phase-2`
+
+Built to the corrected `docs/phase-2-kickoff.md` spec (CENTERLINE model, 7/9 counts).
+
+**ALL 5 GATE TESTS PASS** (`npm run verify:p2`, actual outputs printed):
+- Test 1 aligned pair → **7** segments, 1 shared (x=144, y0–144, t=4", [A,B]). ✓
+- Test 2 offset pair → **9** segments, shared line splits ext[0,72]/shared[72,144]/ext[144,216]. ✓
+- Test 3 → 6 exterior segments form ONE closed loop (walked programmatically). ✓
+- Test 4 → stored geometry always integer inches (10.4→10, 143.7→144). ✓
+- Test 5 → resize clamps at 36" (no inversion); undo restores exact prior w/d. ✓
+- Bonus: flush rooms = adjacency (not overlap); interpenetrating = overlap. ✓
+
+**Delivered**
+- `src/lib/geometry.js`: `resolveWalls` (interval-split, dedup, no post-merge), `roomsOverlap`,
+  `overlappingRoomIds`, `roomInteriorSqft` (per-side inset: 3" exterior / 2" shared).
+- `src/lib/snapping.js`: screen-space (10px→world) prioritized snap — room edge > plot > grid,
+  X/Y independent.
+- Room tool: drag a rectangle or click to drop a default 12'×12'. Select tool: click to select,
+  body-drag to move, 8 handles (4 corner + 4 edge) to resize. Single selection.
+- Live snap guides (accent hairlines); commit rounds to integer inches.
+- Walls rendered as poché from `resolveWalls`; overlap outlines in alert with inspector note.
+- Inspector Room section: name, type dropdown (default "Set type"), W/D (feet-inches or metric),
+  computed interior sqft, overlap warning, delete.
+- Live dimension strings while dragging: room W×D + offsets to nearest wall/plot on each side.
+- Ghost-below now renders the level-below rooms at 15%. Tool rail (Select/Room). Shortcuts:
+  R room, V/Esc select+deselect, Del/Backspace delete.
+- Walls recompute live off an effective-rooms set (preview applied) so drags feel connected;
+  memoized on the geometry signature.
+
+**Browser-interactive criteria for Irene to confirm** on the preview: two 12×12 rooms snapped
+flush read as one shared wall (visually single); drag/resize snaps and feels right at every
+zoom; overlap flags in red; undo after a snap restores geometry.
+
+**Scope guard honored:** rectangles only; no 3D, openings, utilities, landscape; no post-merge;
+no multi-select. **STOPPING before Phase 3** per the kickoff working agreement.
+
+**Not merged to `main`** — pending Irene's review of the gate numbers + browser test.
