@@ -3,6 +3,7 @@ import { useProject } from '../store/useProject.js'
 import { useEditor } from '../store/useEditor.js'
 import { resolveWalls, overlappingRoomIds, roomPolygon } from '../lib/geometry.js'
 import OpeningsLayer from './OpeningsLayer.jsx'
+import UtilitiesLayer from './UtilitiesLayer.jsx'
 import { COLOR } from '../tokens.js'
 
 // Renders, in world inches, inside the canvas transform group:
@@ -131,6 +132,9 @@ export default function RoomsLayer({ zoom, plot }) {
 
       {/* Openings (mask walls + architectural symbols). */}
       <OpeningsLayer />
+
+      {/* Utilities: fixtures + runs. */}
+      <UtilitiesLayer />
 
       {/* Overlap outlines. */}
       <g style={{ pointerEvents: 'none' }}>

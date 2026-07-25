@@ -6,6 +6,8 @@ import { screenToWorld } from '../lib/viewport.js'
 import { snapCandidates, snapAxis } from '../lib/snapping.js'
 import { roomPolygon, carveCorner, cleanPolygon } from '../lib/geometry.js'
 import { nearestWallHost, hostSegment, clampOffset } from '../lib/openings.js'
+import { orthogonalize } from '../lib/runs.js'
+import { UNITS } from '../config.js'
 
 // Pointer interaction for the plan canvas. Everything stays RECTILINEAR (no
 // diagonal walls):
@@ -31,6 +33,60 @@ export function usePlanInteractions(svgRef, spaceRef) {
     return p.levels.find((l) => l.id === p.view.activeLevelId)
   }
   const thresholdIn = () => SNAP_PX / useViewport.getState().zoom
+
+  // Utilities mode: place fixtures, draw runs, or select/move fixtures & runs.
+  const handleUtilitiesDown = (e, start) => {
+    const level = activeLevel()
+    const ed = useEditor.getState()
+    const fixtureId = e.target.getAttribute?.('data-fixture-id')
+
+    if (ed.pendingFixture) {
+      useProject.getState().addFixture({
+        system: ed.pendingFixture.system,
+        kind: ed.pendingFixture.kind,
+        label: ed.pendingFixture.label,
+        x: start.x,
+        y: start.y,
+        rotation: ed.pendingRotation,
+      })
+      useEditor.getState().selectFixture(useProject.getState()._lastFixtureId)
+      return
+    }
+
+    if (ed.runArmed) {
+      if (!ed.runDraft) {
+        if (fixtureId) {
+          const f = level.fixtures.find((x) => x.id === fixtureId)
+          useEditor.getState().startRunDraft({ system: f.system, fromFixtureId: fixtureId, points: [{ x: f.x, y: f.y }] })
+        }
+        return
+      }
+      if (fixtureId && fixtureId !== ed.runDraft.fromFixtureId) {
+        const f = level.fixtures.find((x) => x.id === fixtureId)
+        const pts = orthogonalize([...ed.runDraft.points, { x: f.x, y: f.y }])
+        useProject.getState().addRun({ system: ed.runDraft.system, points: pts, fromFixtureId: ed.runDraft.fromFixtureId, toFixtureId: fixtureId })
+        useEditor.getState().cancelRun()
+        return
+      }
+      useEditor.getState().startRunDraft({ ...ed.runDraft, points: [...ed.runDraft.points, { x: start.x, y: start.y }] })
+      return
+    }
+
+    // Not armed → select / move fixtures and runs.
+    if (fixtureId) {
+      const f = level.fixtures.find((x) => x.id === fixtureId)
+      useEditor.getState().selectFixture(fixtureId)
+      it.current = { mode: 'fixture-move', fixtureId, orig: { ...f }, start }
+      svgRef.current.setPointerCapture(e.pointerId)
+      return
+    }
+    const runId = e.target.getAttribute?.('data-run-id')
+    if (runId) {
+      useEditor.getState().selectRun(runId)
+      return
+    }
+    useEditor.getState().clearSelection()
+  }
 
   const onPointerDown = (e) => {
     if (e.button === 1 || spaceRef.current) {
@@ -66,6 +122,11 @@ export function usePlanInteractions(svgRef, spaceRef) {
       return
     }
 
+    if (tool === 'utilities') {
+      handleUtilitiesDown(e, start)
+      return
+    }
+
     const el = e.target
     const roomId = el.getAttribute?.('data-room-id')
     const vertex = el.getAttribute?.('data-vertex')
@@ -73,6 +134,8 @@ export function usePlanInteractions(svgRef, spaceRef) {
     const wallId = el.getAttribute?.('data-wall-id')
     const wallEnd = el.getAttribute?.('data-wall-end')
     const openingId = el.getAttribute?.('data-opening-id')
+    const fixtureId = el.getAttribute?.('data-fixture-id')
+    const runId = el.getAttribute?.('data-run-id')
     const level = activeLevel()
 
     if (openingId) {
@@ -80,6 +143,17 @@ export function usePlanInteractions(svgRef, spaceRef) {
       useEditor.getState().selectOpening(openingId)
       it.current = { mode: 'opening', openingId, orig: { ...opening }, start }
       svgRef.current.setPointerCapture(e.pointerId)
+      return
+    }
+    if (fixtureId) {
+      const f = level.fixtures.find((x) => x.id === fixtureId)
+      useEditor.getState().selectFixture(fixtureId)
+      it.current = { mode: 'fixture-move', fixtureId, orig: { ...f }, start }
+      svgRef.current.setPointerCapture(e.pointerId)
+      return
+    }
+    if (runId) {
+      useEditor.getState().selectRun(runId)
       return
     }
 
@@ -121,8 +195,21 @@ export function usePlanInteractions(svgRef, spaceRef) {
   }
 
   const onPointerMove = (e) => {
+    // Live run cursor (run drawing is click-based, not a drag).
+    const ed = useEditor.getState()
+    if (ed.tool === 'utilities' && ed.runDraft) ed.setRunCursor(world(e))
+
     const cur = it.current
     if (!cur) return
+
+    if (cur.mode === 'fixture-move') {
+      const p = world(e)
+      const g = UNITS.SNAP_IN
+      const x = Math.round((cur.orig.x + (p.x - cur.start.x)) / g) * g
+      const y = Math.round((cur.orig.y + (p.y - cur.start.y)) / g) * g
+      useEditor.getState().setFixtureDrag({ id: cur.fixtureId, x, y })
+      return
+    }
 
     if (cur.mode === 'pan') {
       const dx = e.clientX - cur.last.x
@@ -270,6 +357,13 @@ export function usePlanInteractions(svgRef, spaceRef) {
       /* capture may already be gone */
     }
     if (cur.mode === 'pan') return
+
+    if (cur.mode === 'fixture-move') {
+      const drag = useEditor.getState().fixtureDrag
+      if (drag) useProject.getState().updateFixture(cur.fixtureId, { x: drag.x, y: drag.y })
+      useEditor.getState().clearFixtureDrag()
+      return
+    }
 
     const preview = useEditor.getState().preview
     const wallPreview = useEditor.getState().wallPreview

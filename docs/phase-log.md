@@ -231,3 +231,34 @@ past wall end clamps ✓; moving parent room carries openings ✓. Build clean.
     zigzag, Glass double-line, DoubleHung rail, Awning chevron). Style picker in inspector.
 - 3D unchanged (still a correct hole per type/size — voids only). Existing openings migrated to
   the new fields. Build + verify-phase4 pass.
+
+Phase 4 (+ swing/styles) confirmed by Irene ("works great"); merged to `main`.
+
+## Phase 5 — utilities — 2026-07-25 — branch `phase-5`
+
+**Delivered**
+- Utilities tool (key `U`). Inspector shows a UtilitiesPanel: 5 system layers (electrical /
+  water / drain / hvac / propane) with per-system show/hide eye + active-system select; a
+  fixture palette from `FIXTURE_CATALOG` filtered to the active system; a "Draw run" button;
+  and per-system run-length totals (feet).
+- Place fixtures by clicking the plan (armed from the palette); `R` rotates the pending/selected
+  fixture. Select + drag moves a fixture (grid-snapped, transient `fixtureDrag` → commit on up,
+  so undo stays clean). Runs re-anchor to fixture positions live (`effectiveRunPoints`).
+- Run tool: click a source fixture → waypoints → destination fixture. Segments route
+  **orthogonally** (`orthogonalize` inserts corners). Live dashed preview to the cursor.
+- System layers: hidden systems fully hidden in 2D + 3D; non-active systems dim to 25% in
+  utilities mode.
+- Vertical risers: a selected run can set "Riser to level"; a circled-arrow marker renders at
+  the riser point on BOTH levels (outgoing + incoming), and 3D draws a dashed vertical connector
+  between the levels' run planes.
+- 3D: fixtures as small system-colored boxes at the floor; runs as colored lines in the
+  floor-assembly gap (`floorY − 6`), only when the layer is on.
+- `src/lib/runs.js` (pure) + `verify-phase5.mjs`: orthogonalize, length, live fixture-follow,
+  per-system totals, footprint lookup. All PASS. Build clean.
+
+**Acceptance:** run heater→sink across levels via riser (both levels + connector) ✓; hiding a
+system hides its runs+fixtures in 2D and 3D ✓; totals update live as a fixture moves ✓.
+
+**Scope guard:** schematic only — no pipe diameters, wire gauges, loads, or code checks.
+
+**Not merged to `main`** — pending Irene's look at utilities on the phase-5 preview.

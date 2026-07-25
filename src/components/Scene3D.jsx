@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Grid, Html } from '@react-three/drei'
+import { OrbitControls, Grid, Html, Line } from '@react-three/drei'
 import { useProject } from '../store/useProject.js'
 import { useEditor } from '../store/useEditor.js'
 import { resolveWalls, roomBounds } from '../lib/geometry.js'
 import { openingWorldSegment, wallSpans } from '../lib/openings.js'
+import { effectiveRunPoints, fixtureFootprint } from '../lib/runs.js'
+import { SYSTEMS } from '../config.js'
 import { formatFeetInches } from '../lib/units.js'
 
 // The plan, standing up. A pure projection of the same store the 2D editor
@@ -24,6 +26,7 @@ export default function Scene3D() {
   const showAll = useEditor((s) => s.show3dAllLevels)
   const showDims = useEditor((s) => s.showDims3d)
   const showCeilings = useEditor((s) => s.showCeilings3d)
+  const hidden = useEditor((s) => s.systemsHidden)
 
   const { plot, levels, view } = project
   const cx = plot.widthIn / 2
@@ -32,6 +35,7 @@ export default function Scene3D() {
 
   const visible = showAll ? levels : levels.filter((l) => l.id === view.activeLevelId)
   const activeId = view.activeLevelId
+  const elevationOf = (id) => levels.find((l) => l.id === id)?.floorElevationIn ?? 0
 
   return (
     <Canvas
@@ -82,6 +86,8 @@ export default function Scene3D() {
             dimmed={showAll && level.id !== activeId}
             showCeiling={showCeilings}
             showDims={showDims && level.id === activeId}
+            hidden={hidden}
+            elevationOf={elevationOf}
           />
         ))}
       </group>
@@ -91,9 +97,10 @@ export default function Scene3D() {
   )
 }
 
-function LevelMeshes({ level, dimmed, showCeiling, showDims }) {
+function LevelMeshes({ level, dimmed, showCeiling, showDims, hidden = [], elevationOf }) {
   const height = level.ceilingHeightIn
   const floorY = level.floorElevationIn
+  const runY = floorY - 6 // schematic runs sit in the floor-assembly gap
 
   const walls = useMemo(() => {
     const merged = new Set(level.mergedPairs || [])
@@ -143,6 +150,36 @@ function LevelMeshes({ level, dimmed, showCeiling, showDims }) {
         walls
           .filter((w) => w.isExterior)
           .map((w) => <DimLabel key={`d${w.id}`} w={w} y={floorY + height} />)}
+
+      {/* Utility fixtures */}
+      {(level.fixtures || [])
+        .filter((f) => !hidden.includes(f.system))
+        .map((f) => {
+          const { w, d } = fixtureFootprint(f.kind)
+          return (
+            <mesh key={f.id} position={[f.x, floorY + 5, f.y]} rotation={[0, (-(f.rotation || 0) * Math.PI) / 180, 0]} castShadow>
+              <boxGeometry args={[w, 10, d]} />
+              <meshStandardMaterial color={SYSTEMS[f.system].color} roughness={1} transparent={dimmed} opacity={dimmed ? 0.3 : 1} />
+            </mesh>
+          )
+        })}
+
+      {/* Utility runs (in the floor gap) + risers */}
+      {(level.runs || [])
+        .filter((r) => !hidden.includes(r.system))
+        .map((r) => {
+          const pts = effectiveRunPoints(r, level.fixtures || []).map((p) => [p.x, runY, p.y])
+          const last = pts[pts.length - 1]
+          const targetY = r.risesToLevelId ? elevationOf(r.risesToLevelId) - 6 : null
+          return (
+            <group key={r.id}>
+              {pts.length >= 2 && <Line points={pts} color={SYSTEMS[r.system].color} lineWidth={2} transparent opacity={dimmed ? 0.3 : 1} />}
+              {targetY != null && last && (
+                <Line points={[last, [last[0], targetY, last[2]]]} color={SYSTEMS[r.system].color} lineWidth={2} dashed dashSize={8} gapSize={6} transparent opacity={dimmed ? 0.3 : 1} />
+              )}
+            </group>
+          )
+        })}
     </group>
   )
 }

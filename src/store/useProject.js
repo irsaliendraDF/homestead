@@ -86,6 +86,8 @@ export function migrateProject(project) {
       ...l,
       rooms: (l.rooms || []).map(migrateRoom),
       walls: l.walls || [],
+      fixtures: l.fixtures || [],
+      runs: l.runs || [],
       mergedPairs: l.mergedPairs || [],
       openings: (l.openings || []).map((o) => ({
         style: o.style ?? OPENING_STYLES[o.type]?.[0] ?? 'single',
@@ -349,6 +351,90 @@ export const useProject = create(
                 ...l,
                 openings: (l.openings || []).filter((o) => o.id !== openingId),
               })),
+            }),
+          }
+        }),
+
+      // ── Utilities: fixtures + runs (on the active level) ──
+      addFixture: ({ system, kind, x, y, label, rotation = 0 }) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          const fixture = { id: uid(), system, kind, x: Math.round(x), y: Math.round(y), rotation, label }
+          return {
+            project: touch(s.project, {
+              levels: mapLevel(s.project.levels, levelId, (l) => ({ ...l, fixtures: [...(l.fixtures || []), fixture] })),
+            }),
+            _lastFixtureId: fixture.id,
+          }
+        }),
+
+      updateFixture: (fixtureId, patch) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          const clean = {}
+          for (const [k, v] of Object.entries(patch)) clean[k] = ['x', 'y', 'rotation'].includes(k) ? Math.round(v) : v
+          return {
+            project: touch(s.project, {
+              levels: mapLevel(s.project.levels, levelId, (l) => ({
+                ...l,
+                fixtures: (l.fixtures || []).map((f) => (f.id === fixtureId ? { ...f, ...clean } : f)),
+              })),
+            }),
+          }
+        }),
+
+      removeFixture: (fixtureId) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          return {
+            project: touch(s.project, {
+              levels: mapLevel(s.project.levels, levelId, (l) => ({
+                ...l,
+                fixtures: (l.fixtures || []).filter((f) => f.id !== fixtureId),
+                runs: (l.runs || []).filter((r) => r.fromFixtureId !== fixtureId && r.toFixtureId !== fixtureId),
+              })),
+            }),
+          }
+        }),
+
+      addRun: ({ system, points, fromFixtureId, toFixtureId, risesToLevelId = null }) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          const run = {
+            id: uid(),
+            system,
+            points: points.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) })),
+            fromFixtureId,
+            toFixtureId,
+            risesToLevelId,
+          }
+          return {
+            project: touch(s.project, {
+              levels: mapLevel(s.project.levels, levelId, (l) => ({ ...l, runs: [...(l.runs || []), run] })),
+            }),
+            _lastRunId: run.id,
+          }
+        }),
+
+      updateRun: (runId, patch) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          return {
+            project: touch(s.project, {
+              levels: mapLevel(s.project.levels, levelId, (l) => ({
+                ...l,
+                runs: (l.runs || []).map((r) => (r.id === runId ? { ...r, ...patch } : r)),
+              })),
+            }),
+          }
+        }),
+
+      removeRun: (runId) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          return {
+            project: touch(s.project, {
+              levels: mapLevel(s.project.levels, levelId, (l) => ({ ...l, runs: (l.runs || []).filter((r) => r.id !== runId) })),
             }),
           }
         }),

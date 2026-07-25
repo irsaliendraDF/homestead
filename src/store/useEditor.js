@@ -1,5 +1,14 @@
 import { create } from 'zustand'
 
+// Clearing selection resets every selectable kind at once.
+const CLEAR = {
+  selectedId: null,
+  selectedWallId: null,
+  selectedOpeningId: null,
+  selectedFixtureId: null,
+  selectedRunId: null,
+}
+
 // Transient editor state: active tool, selection, and live drag preview. None of
 // this is design data — it's outside the undoable store and never persisted.
 export const useEditor = create((set) => ({
@@ -11,6 +20,18 @@ export const useEditor = create((set) => ({
   selectedId: null, // selected room
   selectedWallId: null, // selected freestanding wall
   selectedOpeningId: null, // selected opening
+  selectedFixtureId: null, // selected utility fixture
+  selectedRunId: null, // selected utility run
+
+  // Utilities
+  activeSystem: 'electrical',
+  systemsHidden: [], // system keys hidden from view
+  pendingFixture: null, // { system, kind, label } armed for placement
+  pendingRotation: 0, // rotation for the next placed fixture
+  runArmed: false, // run tool armed
+  runDraft: null, // { system, fromFixtureId, points: [{x,y}] } in progress
+  runCursor: null, // live cursor point while drawing a run
+  fixtureDrag: null, // { id, x, y } transient while dragging a fixture
   preview: null, // { points } while drawing/moving/editing a room
   previewId: null, // id of the room being edited (null while drawing new)
   wallPreview: null, // { x1, y1, x2, y2 } while drawing/editing a wall
@@ -18,7 +39,7 @@ export const useEditor = create((set) => ({
   guides: { xs: [], ys: [] },
 
   setTool: (tool) =>
-    set({ tool, preview: null, previewId: null, wallPreview: null, openingPreview: null, guides: { xs: [], ys: [] } }),
+    set({ tool, preview: null, previewId: null, wallPreview: null, openingPreview: null, pendingFixture: null, runArmed: false, runDraft: null, runCursor: null, guides: { xs: [], ys: [] } }),
 
   setOpeningPreview: (openingPreview) => set({ openingPreview }),
   clearOpeningPreview: () => set({ openingPreview: null }),
@@ -28,10 +49,26 @@ export const useEditor = create((set) => ({
   toggleDims3d: () => set((s) => ({ showDims3d: !s.showDims3d })),
   toggleCeilings3d: () => set((s) => ({ showCeilings3d: !s.showCeilings3d })),
 
-  select: (selectedId) => set({ selectedId, selectedWallId: null, selectedOpeningId: null }),
-  selectWall: (selectedWallId) => set({ selectedWallId, selectedId: null, selectedOpeningId: null }),
-  selectOpening: (selectedOpeningId) => set({ selectedOpeningId, selectedId: null, selectedWallId: null }),
-  clearSelection: () => set({ selectedId: null, selectedWallId: null, selectedOpeningId: null }),
+  select: (selectedId) => set({ ...CLEAR, selectedId }),
+  selectWall: (selectedWallId) => set({ ...CLEAR, selectedWallId }),
+  selectOpening: (selectedOpeningId) => set({ ...CLEAR, selectedOpeningId }),
+  selectFixture: (selectedFixtureId) => set({ ...CLEAR, selectedFixtureId }),
+  selectRun: (selectedRunId) => set({ ...CLEAR, selectedRunId }),
+  clearSelection: () => set({ ...CLEAR }),
+
+  // Utilities
+  setActiveSystem: (activeSystem) => set({ activeSystem }),
+  toggleSystemHidden: (sys) =>
+    set((s) => ({ systemsHidden: s.systemsHidden.includes(sys) ? s.systemsHidden.filter((x) => x !== sys) : [...s.systemsHidden, sys] })),
+  armFixture: (pendingFixture) => set({ pendingFixture, runArmed: false, runDraft: null, tool: 'utilities' }),
+  disarmFixture: () => set({ pendingFixture: null }),
+  armRun: () => set({ runArmed: true, pendingFixture: null, runDraft: null, tool: 'utilities' }),
+  startRunDraft: (runDraft) => set({ runDraft }),
+  setRunCursor: (runCursor) => set({ runCursor }),
+  cancelRun: () => set({ runDraft: null, runCursor: null }),
+  rotatePending: () => set((s) => ({ pendingRotation: (s.pendingRotation + 90) % 360 })),
+  setFixtureDrag: (fixtureDrag) => set({ fixtureDrag }),
+  clearFixtureDrag: () => set({ fixtureDrag: null }),
 
   setPreview: (preview, guides = { xs: [], ys: [] }, previewId = null) =>
     set({ preview, guides, previewId }),

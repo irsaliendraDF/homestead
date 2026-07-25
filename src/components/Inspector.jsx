@@ -8,10 +8,13 @@ import {
   switchProject,
   removeProject,
 } from '../store/session.js'
-import { REGION, UNITS, ROOM_TYPES } from '../config.js'
+import { REGION, UNITS, ROOM_TYPES, SYSTEMS } from '../config.js'
 import { formatFeetInches } from '../lib/units.js'
 import { roomAreaSqft, roomBounds, roomPolygon, overlappingRoomIds, sharedPairs } from '../lib/geometry.js'
+import { runLengthIn, effectiveRunPoints } from '../lib/runs.js'
 import DimensionInput from './DimensionInput.jsx'
+import UtilitiesPanel from './UtilitiesPanel.jsx'
+import { RotateCw } from 'lucide-react'
 
 const k2 = (a, b) => [a, b].sort().join('|')
 
@@ -52,6 +55,12 @@ export default function Inspector() {
   const overlapping = room ? overlappingRoomIds(rooms, mergedSet).has(room.id) : false
   const wall = active ? (active.walls || []).find((w) => w.id === selectedWallId) : null
   const opening = active ? (active.openings || []).find((o) => o.id === selectedOpeningId) : null
+  const selectedFixtureId = useEditor((s) => s.selectedFixtureId)
+  const selectedRunId = useEditor((s) => s.selectedRunId)
+  const tool = useEditor((s) => s.tool)
+  const fixture = active ? (active.fixtures || []).find((f) => f.id === selectedFixtureId) : null
+  const run = active ? (active.runs || []).find((r) => r.id === selectedRunId) : null
+  const otherLevels = project.levels.filter((l) => l.id !== project.view.activeLevelId)
 
   // Rooms that share a wall with the selected room, and whether they're joined.
   const neighbors = room
@@ -67,6 +76,76 @@ export default function Inspector() {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
+      {/* Selected fixture */}
+      {fixture && (
+        <Section title="Fixture">
+          <div className="flex items-center gap-2 text-sm text-ink">
+            <span className="h-3 w-3 rounded-sm" style={{ background: SYSTEMS[fixture.system].color }} />
+            {fixture.label}
+          </div>
+          <div className="text-xs text-muted">{SYSTEMS[fixture.system].label}</div>
+          <button
+            type="button"
+            onClick={() => useProject.getState().updateFixture(fixture.id, { rotation: ((fixture.rotation || 0) + 90) % 360 })}
+            className="flex items-center justify-center gap-1.5 rounded border border-line px-2 py-1.5 text-xs text-ink hover:bg-accentSoft"
+          >
+            <RotateCw size={14} strokeWidth={1.75} /> Rotate 90°
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              useProject.getState().removeFixture(fixture.id)
+              useEditor.getState().clearSelection()
+            }}
+            className="flex items-center justify-center gap-1.5 rounded border border-line px-2 py-1.5 text-xs text-alert hover:bg-alert/10"
+          >
+            <Trash2 size={14} strokeWidth={1.75} /> Delete fixture
+          </button>
+        </Section>
+      )}
+
+      {/* Selected run */}
+      {run && (
+        <Section title="Run">
+          <div className="flex items-center gap-2 text-sm text-ink">
+            <span className="h-3 w-3 rounded-sm" style={{ background: SYSTEMS[run.system].color }} />
+            {SYSTEMS[run.system].label}
+          </div>
+          <div className="flex items-center justify-between text-xs text-muted">
+            <span>Length</span>
+            <span className="num text-ink">{formatFeetInches(runLengthIn(effectiveRunPoints(run, active.fixtures || [])))}</span>
+          </div>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-muted">Riser to level</span>
+            <select
+              value={run.risesToLevelId || ''}
+              onChange={(e) => useProject.getState().updateRun(run.id, { risesToLevelId: e.target.value || null })}
+              className="w-full rounded border border-line bg-canvas px-2 py-1 text-sm text-ink"
+            >
+              <option value="">None (same level)</option>
+              {otherLevels.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              useProject.getState().removeRun(run.id)
+              useEditor.getState().clearSelection()
+            }}
+            className="flex items-center justify-center gap-1.5 rounded border border-line px-2 py-1.5 text-xs text-alert hover:bg-alert/10"
+          >
+            <Trash2 size={14} strokeWidth={1.75} /> Delete run
+          </button>
+        </Section>
+      )}
+
+      {/* Utilities palette (when the tool is active and nothing is selected) */}
+      {tool === 'utilities' && !fixture && !run && <UtilitiesPanel />}
+
       {/* Selected opening */}
       {opening && (
         <Section title="Opening">
