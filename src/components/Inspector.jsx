@@ -10,8 +10,10 @@ import {
 } from '../store/session.js'
 import { REGION, UNITS, ROOM_TYPES } from '../config.js'
 import { formatFeetInches } from '../lib/units.js'
-import { roomAreaSqft, roomBounds, roomPolygon, overlappingRoomIds } from '../lib/geometry.js'
+import { roomAreaSqft, roomBounds, roomPolygon, overlappingRoomIds, sharedPairs } from '../lib/geometry.js'
 import DimensionInput from './DimensionInput.jsx'
+
+const k2 = (a, b) => [a, b].sort().join('|')
 
 // Right-hand inspector. Phase 1 scope: project management, plot size, and the
 // active level's settings. Room properties arrive in Phase 2.
@@ -26,8 +28,20 @@ export default function Inspector() {
   const isBasement = active && active.index < 0
   const rooms = active ? active.rooms : []
   const room = rooms.find((r) => r.id === selectedId)
-  const overlapping = room ? overlappingRoomIds(rooms).has(room.id) : false
+  const mergedList = active ? active.mergedPairs || [] : []
+  const mergedSet = new Set(mergedList)
+  const overlapping = room ? overlappingRoomIds(rooms, mergedSet).has(room.id) : false
   const wall = active ? (active.walls || []).find((w) => w.id === selectedWallId) : null
+
+  // Rooms that share a wall with the selected room, and whether they're joined.
+  const neighbors = room
+    ? [...sharedPairs(rooms)]
+        .filter((k) => k.split('|').includes(room.id))
+        .map((k) => k.split('|').find((id) => id !== room.id))
+        .filter((id, i, a) => a.indexOf(id) === i)
+        .map((id) => ({ room: rooms.find((r) => r.id === id), joined: mergedSet.has(k2(room.id, id)) }))
+        .filter((n) => n.room)
+    : []
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
@@ -110,8 +124,36 @@ export default function Inspector() {
 
           {overlapping && (
             <p className="rounded bg-alert/10 px-2 py-1.5 text-[11px] leading-tight text-alert">
-              These rooms overlap — drag one apart.
+              These rooms overlap — drag one apart, or join them below to make one L-shaped space.
             </p>
+          )}
+
+          {neighbors.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-muted">Shared walls</span>
+              {neighbors.map((n) => (
+                <div key={n.room.id} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="min-w-0 flex-1 truncate text-ink">{n.room.name}</span>
+                  {n.joined ? (
+                    <button
+                      type="button"
+                      onClick={() => useProject.getState().unmergeRooms(room.id, n.room.id)}
+                      className="shrink-0 rounded border border-line px-2 py-0.5 text-[11px] text-ink hover:bg-accentSoft"
+                    >
+                      Add wall back
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => useProject.getState().mergeRooms(room.id, n.room.id)}
+                      className="shrink-0 rounded border border-accent px-2 py-0.5 text-[11px] text-accent hover:bg-accentSoft"
+                    >
+                      Remove wall (join)
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
 
           <button

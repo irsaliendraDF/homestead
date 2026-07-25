@@ -28,10 +28,12 @@ export default function RoomsLayer({ zoom, plot }) {
   const freeWalls = level.walls || []
 
   const effective = effectiveRooms(level.rooms, { preview, previewId })
+  const mergedList = level.mergedPairs || []
+  const merged = useMemo(() => new Set(mergedList), [mergedList.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const sig = effective.map((r) => `${r.id}:${ptsStr(roomPolygon(r))}`).join('|')
-  const walls = useMemo(() => resolveWalls(effective), [sig]) // eslint-disable-line react-hooks/exhaustive-deps
-  const overlaps = useMemo(() => overlappingRoomIds(effective), [sig]) // eslint-disable-line react-hooks/exhaustive-deps
+  const sig = effective.map((r) => `${r.id}:${ptsStr(roomPolygon(r))}`).join('|') + '#' + mergedList.join(',')
+  const walls = useMemo(() => resolveWalls(effective, merged), [sig]) // eslint-disable-line react-hooks/exhaustive-deps
+  const overlaps = useMemo(() => overlappingRoomIds(effective, merged), [sig]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const hs = 8 / zoom // corner handle size (screen-constant)
   const er = 6 / zoom // edge handle radius

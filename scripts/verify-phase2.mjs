@@ -7,6 +7,8 @@ import {
   carveCorner,
   cleanPolygon,
   isRectilinear,
+  sharedPairs,
+  overlappingRoomIds,
 } from '../src/lib/geometry.js'
 import { useProject, makeDefaultProject } from '../src/store/useProject.js'
 import { UNITS } from '../src/config.js'
@@ -150,6 +152,31 @@ console.log('\nTest 8 — add a freestanding wall')
   console.log(`  walls: ${walls.length}, first = ${JSON.stringify(walls[0] && { x1: walls[0].x1, x2: walls[0].x2 })}`)
   check('one wall added', walls.length === 1)
   check('wall coords are integers', walls[0] && Number.isInteger(walls[0].x1) && Number.isInteger(walls[0].x2))
+}
+
+// ── Test 9 — join two rooms removes the shared wall ───────
+console.log('\nTest 9 — join two rooms → shared wall gone (one L-shaped space)')
+{
+  const A = { id: 'A', x: 0, y: 0, w: 144, d: 144 }
+  const B = { id: 'B', x: 144, y: 0, w: 144, d: 144 }
+  const before = resolveWalls([A, B]).filter((w) => !w.isExterior)
+  const merged = new Set(['A|B'])
+  const after = resolveWalls([A, B], merged)
+  check('sharedPairs detects A|B adjacency', sharedPairs([A, B]).has('A|B'))
+  check('before join: 1 shared wall', before.length === 1)
+  check('after join: shared wall removed', after.filter((w) => !w.isExterior).length === 0)
+  check('after join: only the 6 outer walls remain', after.length === 6, `got ${after.length}`)
+}
+
+// ── Test 10 — overlap tolerance ───────────────────────────
+console.log('\nTest 10 — tiny overlaps tolerated; real overlaps flagged')
+{
+  const A = { id: 'A', x: 0, y: 0, w: 144, d: 144 }
+  const near = { id: 'B', x: 143, y: 0, w: 144, d: 144 } // 1" overlap
+  const far = { id: 'C', x: 132, y: 0, w: 144, d: 144 } // 12" overlap
+  check('1-inch overlap tolerated (not flagged)', !roomsOverlap(A, near))
+  check('12-inch overlap flagged', roomsOverlap(A, far))
+  check('joined pair never flagged as overlap', overlappingRoomIds([A, far], new Set(['A|C'])).size === 0)
 }
 
 console.log('')

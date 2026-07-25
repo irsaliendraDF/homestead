@@ -129,11 +129,15 @@ function toSegment(orientation, line, a, b) {
     : { x1: line, y1: a, x2: line, y2: b }
 }
 
+const pairKey = (a, b) => [a, b].sort().join('|')
+
 /**
- * resolveWalls(rooms) → [{ id, x1, y1, x2, y2, thicknessIn, isExterior, roomIds }].
- * SHARED boundaries emitted once. No collinear post-merge.
+ * resolveWalls(rooms, merged) → [{ id, x1, y1, x2, y2, thicknessIn, isExterior, roomIds }].
+ * SHARED boundaries emitted once. No collinear post-merge. If a room pair is in
+ * `merged` (a Set of "idA|idB" keys) their shared wall is dropped — that's how
+ * "remove the wall between two rooms" joins them into one L-shaped space.
  */
-export function resolveWalls(rooms) {
+export function resolveWalls(rooms, merged = new Set()) {
   const all = rooms.flatMap(edgeList)
   const axis = all.filter((e) => e.orientation !== 'D')
   const diag = all.filter((e) => e.orientation === 'D')
@@ -172,6 +176,8 @@ export function resolveWalls(rooms) {
         const key = `${e.orientation}|${e.line}|${a}|${b}`
         if (sharedSeen.has(key)) continue
         sharedSeen.add(key)
+        // Joined rooms: drop the wall between them entirely.
+        if (merged.has(pairKey(e.roomId, cover.roomId))) continue
         walls.push({
           id: `S|${key}`,
           ...toSegment(e.orientation, e.line, a, b),
@@ -223,15 +229,19 @@ function segmentsCross(p1, p2, p3, p4) {
   return d1 !== d2 && d3 !== d4 && d1 !== 0 && d2 !== 0 && d3 !== 0 && d4 !== 0
 }
 
+// Overlaps smaller than this (inches) are treated as adjacency, not overlap —
+// so a flush join or a tiny drag imperfection doesn't flag red.
+const OVERLAP_TOLERANCE_IN = 1
+
 export function roomsOverlap(A, B) {
   const pa = roomPolygon(A)
   const pb = roomPolygon(B)
-  // bbox reject
   const ba = roomBounds(A)
   const bb = roomBounds(B)
-  if (ba.x + ba.w <= bb.x || bb.x + bb.w <= ba.x || ba.y + ba.d <= bb.y || bb.y + bb.d <= ba.y) {
-    return false
-  }
+  // Bounding-box overlap must exceed the tolerance in BOTH axes to count.
+  const ix = Math.min(ba.x + ba.w, bb.x + bb.w) - Math.max(ba.x, bb.x)
+  const iy = Math.min(ba.y + ba.d, bb.y + bb.d) - Math.max(ba.y, bb.y)
+  if (ix <= OVERLAP_TOLERANCE_IN || iy <= OVERLAP_TOLERANCE_IN) return false
   for (let i = 0; i < pa.length; i++) {
     const a1 = pa[i]
     const a2 = pa[(i + 1) % pa.length]
@@ -297,10 +307,11 @@ export function isRectilinear(points) {
   return true
 }
 
-export function overlappingRoomIds(rooms) {
+export function overlappingRoomIds(rooms, merged = new Set()) {
   const bad = new Set()
   for (let i = 0; i < rooms.length; i++) {
     for (let j = i + 1; j < rooms.length; j++) {
+      if (merged.has(pairKey(rooms[i].id, rooms[j].id))) continue // joined, not an error
       if (roomsOverlap(rooms[i], rooms[j])) {
         bad.add(rooms[i].id)
         bad.add(rooms[j].id)
@@ -308,4 +319,13 @@ export function overlappingRoomIds(rooms) {
     }
   }
   return bad
+}
+
+/** Set of "idA|idB" keys for every room pair that shares a wall (adjacent). */
+export function sharedPairs(rooms) {
+  const s = new Set()
+  for (const w of resolveWalls(rooms)) {
+    if (!w.isExterior) s.add(w.roomIds.join('|'))
+  }
+  return s
 }

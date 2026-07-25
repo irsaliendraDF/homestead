@@ -22,6 +22,7 @@ export function makeLevel({ name, index }) {
     ceilingHeightIn: index < 0 ? DEFAULTS.BASEMENT_CEILING_IN : DEFAULTS.CEILING_HEIGHT_IN,
     rooms: [],
     walls: [], // freestanding wall segments (not tied to a room)
+    mergedPairs: [], // "idA|idB" pairs whose shared wall is removed (joined into an L)
     openings: [],
     fixtures: [],
     runs: [],
@@ -85,9 +86,12 @@ export function migrateProject(project) {
       ...l,
       rooms: (l.rooms || []).map(migrateRoom),
       walls: l.walls || [],
+      mergedPairs: l.mergedPairs || [],
     })),
   }
 }
+
+const mergeKey = (a, b) => [a, b].sort().join('|')
 function migrateRoom(r) {
   if (r.points && r.points.length >= 3) return r
   const { x = 0, y = 0, w = 0, d = 0, ...rest } = r
@@ -254,6 +258,40 @@ export const useProject = create(
               levels: mapLevel(s.project.levels, levelId, (l) => ({
                 ...l,
                 rooms: l.rooms.filter((r) => r.id !== roomId),
+                // drop any join that referenced the deleted room
+                mergedPairs: (l.mergedPairs || []).filter((k) => !k.split('|').includes(roomId)),
+              })),
+            }),
+          }
+        }),
+
+      // Join two rooms (remove the wall between them → one L-shaped space).
+      mergeRooms: (aId, bId) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          const key = mergeKey(aId, bId)
+          return {
+            project: touch(s.project, {
+              levels: mapLevel(s.project.levels, levelId, (l) => ({
+                ...l,
+                mergedPairs: (l.mergedPairs || []).includes(key)
+                  ? l.mergedPairs
+                  : [...(l.mergedPairs || []), key],
+              })),
+            }),
+          }
+        }),
+
+      // Separate two rooms (put the shared wall back).
+      unmergeRooms: (aId, bId) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          const key = mergeKey(aId, bId)
+          return {
+            project: touch(s.project, {
+              levels: mapLevel(s.project.levels, levelId, (l) => ({
+                ...l,
+                mergedPairs: (l.mergedPairs || []).filter((k) => k !== key),
               })),
             }),
           }

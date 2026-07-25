@@ -146,3 +146,18 @@ Corrected corner-drag to **carve L-notches** (no diagonals). Corner drag = `carv
 Added a **freestanding Wall tool** (draw H/V, move, trim endpoints, delete; `level.walls`).
 Tests added: Test 7 (carve → rectilinear 6-corner L, no diagonals) and Test 8 (add wall).
 All gate + new tests PASS; build clean. **Merged phase-2 → main per Irene ("push to main").**
+
+### Phase 2 follow-up 3 — join rooms + overlap tolerance (Irene screenshot, 2026-07-25)
+
+Irene's screenshot: two rooms placed as an L were both flagged red (overlap) with a doubled
+divider — no way to join them. Fixes:
+- **Join rooms**: inspector lists a selected room's shared-wall neighbors with "Remove wall
+  (join)" / "Add wall back". Joining stores the pair in `level.mergedPairs`; `resolveWalls`
+  drops that shared wall and overlap is suppressed for joined pairs → two flush rooms read as
+  one L-shaped space. `sharedPairs()` finds adjacency.
+- **Overlap tolerance** (`OVERLAP_TOLERANCE_IN = 1`): flush joins and sub-inch drag slop no
+  longer flag red.
+- Freestanding wall delete confirmed working (select + Delete / inspector).
+- Tests 9 (join removes shared wall, 6 outer remain) + 10 (tolerance) PASS.
+- Note: cleanest L via two rooms needs them placed FLUSH then joined; a single room can also
+  be carved into an L by dragging a corner. Union of genuinely-overlapping rooms not done.
