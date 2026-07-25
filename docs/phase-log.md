@@ -262,3 +262,32 @@ system hides its runs+fixtures in 2D and 3D ✓; totals update live as a fixture
 **Scope guard:** schematic only — no pipe diameters, wire gauges, loads, or code checks.
 
 **Not merged to `main`** — pending Irene's look at utilities on the phase-5 preview.
+
+Phase 5 confirmed by Irene ("fantastic"); merged to `main`.
+
+## Phase 6 — landscape (base) — 2026-07-25 — branch `phase-6`
+
+**Delivered**
+- **Building / Site mode** toggle in the title bar (plan view only). Site mode locks the house
+  footprint (rooms render as a light grey, non-interactive mass) and hides the building layers;
+  Building mode shows landscape objects faint behind the plan.
+- Landscape objects live at project level (`project.landscape.objects`), x/y = CENTER, rotation
+  in 90° steps. Palette from `LANDSCAPE_CATALOG` (shed, garage, greenhouse, garden bed, tree,
+  shrub, path, driveway, patio, deck, fence, pond, fire pit, coop) in the inspector.
+- Place by clicking; move (snaps to plot edges + other objects); resize via 8 handles
+  (footprint-aware, so a rotated object resizes correctly); rotate with R or the inspector.
+- **Setback readout** in the inspector for a selected object: distance to each property line
+  (front/rear/left/right) + distance to the house.
+- 3D massing at grade: boxes for structures/beds/decks/fences, trunk-cylinder + canopy-sphere
+  for trees, sphere for shrubs, short cylinder for fire pits, flat inset slabs for
+  paths/driveways/patios, a sunken slab for ponds. Muted natural tones, matte, no textures.
+- `src/lib/landscape.js` (pure) + `verify-phase6.mjs`: footprint rotation-swap, setbacks
+  (shed 10' from rear → `10' 0"`), distance-to-house. All PASS. Build clean.
+
+**Acceptance:** shed 10' from rear reads 10' 0" ✓; objects appear in 3D at correct
+positions/heights relative to the house ✓.
+
+**Scope guard:** flat terrain only — no slopes/contours. Garden layer (zones, plants,
+companions, systems, assist) is Phases 6.1–6.3, next.
+
+**Not merged to `main`** — pending Irene's look at Site mode on the phase-6 preview.

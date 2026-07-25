@@ -7,6 +7,7 @@ import { snapCandidates, snapAxis } from '../lib/snapping.js'
 import { roomPolygon, carveCorner, cleanPolygon } from '../lib/geometry.js'
 import { nearestWallHost, hostSegment, clampOffset } from '../lib/openings.js'
 import { orthogonalize } from '../lib/runs.js'
+import { objectFootprint } from '../lib/landscape.js'
 import { UNITS } from '../config.js'
 
 // Pointer interaction for the plan canvas. Everything stays RECTILINEAR (no
@@ -88,6 +89,35 @@ export function usePlanInteractions(svgRef, spaceRef) {
     useEditor.getState().clearSelection()
   }
 
+  // Landscape (site) mode: place / move / resize landscape objects.
+  const handleLandscapeDown = (e, start) => {
+    const ed = useEditor.getState()
+    const project = useProject.getState().project
+    if (ed.pendingLandscape) {
+      const p = ed.pendingLandscape
+      useProject.getState().addLandscapeObject({ kind: p.kind, label: p.label, x: start.x, y: start.y, w: p.w, d: p.d, heightIn: p.heightIn, rotation: 0 })
+      useEditor.getState().selectLandscape(useProject.getState()._lastLandscapeId)
+      return
+    }
+    const handle = e.target.getAttribute?.('data-landscape-handle')
+    const id = e.target.getAttribute?.('data-landscape-id')
+    if (handle && id) {
+      const obj = project.landscape.objects.find((o) => o.id === id)
+      useEditor.getState().selectLandscape(id)
+      it.current = { mode: 'ls-resize', id, handle, orig: { ...obj }, start }
+      svgRef.current.setPointerCapture(e.pointerId)
+      return
+    }
+    if (id) {
+      const obj = project.landscape.objects.find((o) => o.id === id)
+      useEditor.getState().selectLandscape(id)
+      it.current = { mode: 'ls-move', id, orig: { ...obj }, start }
+      svgRef.current.setPointerCapture(e.pointerId)
+      return
+    }
+    useEditor.getState().clearSelection()
+  }
+
   const onPointerDown = (e) => {
     if (e.button === 1 || spaceRef.current) {
       it.current = { mode: 'pan', last: { x: e.clientX, y: e.clientY } }
@@ -96,8 +126,14 @@ export function usePlanInteractions(svgRef, spaceRef) {
     }
     if (e.button !== 0) return
 
-    const tool = useEditor.getState().tool
     const start = world(e)
+
+    if (useEditor.getState().canvasMode === 'landscape') {
+      handleLandscapeDown(e, start)
+      return
+    }
+
+    const tool = useEditor.getState().tool
 
     if (tool === 'room') {
       it.current = { mode: 'draw', start }
@@ -208,6 +244,47 @@ export function usePlanInteractions(svgRef, spaceRef) {
       const x = Math.round((cur.orig.x + (p.x - cur.start.x)) / g) * g
       const y = Math.round((cur.orig.y + (p.y - cur.start.y)) / g) * g
       useEditor.getState().setFixtureDrag({ id: cur.fixtureId, x, y })
+      return
+    }
+
+    if (cur.mode === 'ls-move') {
+      const p = world(e)
+      const obj = { ...cur.orig, x: cur.orig.x + (p.x - cur.start.x), y: cur.orig.y + (p.y - cur.start.y) }
+      const project = useProject.getState().project
+      const f = objectFootprint(obj)
+      const cand = landscapeCandidates(project.landscape.objects.filter((o) => o.id !== cur.id), project.plot)
+      const thr = thresholdIn()
+      const sx = snapAxis([f.left, f.right], cand.xs, thr)
+      const sy = snapAxis([f.top, f.bottom], cand.ys, thr)
+      useEditor.getState().setLandscapePreview({ id: cur.id, x: obj.x + sx.delta, y: obj.y + sy.delta, w: cur.orig.w, d: cur.orig.d, rotation: cur.orig.rotation })
+      return
+    }
+
+    if (cur.mode === 'ls-resize') {
+      const p = world(e)
+      const f = objectFootprint(cur.orig)
+      let { left, right, top, bottom } = f
+      const dx = p.x - cur.start.x
+      const dy = p.y - cur.start.y
+      const h = cur.handle
+      if (h.includes('w')) left = f.left + dx
+      if (h.includes('e')) right = f.right + dx
+      if (h.includes('n')) top = f.top + dy
+      if (h.includes('s')) bottom = f.bottom + dy
+      const MIN = 12
+      if (right - left < MIN) h.includes('w') ? (left = right - MIN) : (right = left + MIN)
+      if (bottom - top < MIN) h.includes('n') ? (top = bottom - MIN) : (bottom = top + MIN)
+      const fw = right - left
+      const fh = bottom - top
+      const swap = (cur.orig.rotation || 0) % 180 !== 0
+      useEditor.getState().setLandscapePreview({
+        id: cur.id,
+        x: (left + right) / 2,
+        y: (top + bottom) / 2,
+        w: swap ? fh : fw,
+        d: swap ? fw : fh,
+        rotation: cur.orig.rotation,
+      })
       return
     }
 
@@ -365,6 +442,13 @@ export function usePlanInteractions(svgRef, spaceRef) {
       return
     }
 
+    if (cur.mode === 'ls-move' || cur.mode === 'ls-resize') {
+      const pv = useEditor.getState().landscapePreview
+      useEditor.getState().clearLandscapePreview()
+      if (pv) useProject.getState().updateLandscapeObject(cur.id, { x: pv.x, y: pv.y, w: pv.w, d: pv.d })
+      return
+    }
+
     const preview = useEditor.getState().preview
     const wallPreview = useEditor.getState().wallPreview
     const openingPreview = useEditor.getState().openingPreview
@@ -441,4 +525,15 @@ function bounds(points) {
 }
 function guides(sx, sy) {
   return { xs: sx.guide != null ? [sx.guide] : [], ys: sy.guide != null ? [sy.guide] : [] }
+}
+
+function landscapeCandidates(objects, plot) {
+  const xs = [{ v: 0, kind: 'plot' }, { v: plot.widthIn, kind: 'plot' }]
+  const ys = [{ v: 0, kind: 'plot' }, { v: plot.depthIn, kind: 'plot' }]
+  for (const o of objects) {
+    const f = objectFootprint(o)
+    xs.push({ v: f.left, kind: 'room' }, { v: f.right, kind: 'room' })
+    ys.push({ v: f.top, kind: 'room' }, { v: f.bottom, kind: 'room' })
+  }
+  return { xs, ys }
 }

@@ -6,6 +6,7 @@ import { useEditor } from '../store/useEditor.js'
 import { resolveWalls, roomBounds } from '../lib/geometry.js'
 import { openingWorldSegment, wallSpans } from '../lib/openings.js'
 import { effectiveRunPoints, fixtureFootprint } from '../lib/runs.js'
+import { LANDSCAPE_STYLE } from '../lib/landscape.js'
 import { SYSTEMS } from '../config.js'
 import { formatFeetInches } from '../lib/units.js'
 
@@ -79,6 +80,9 @@ export default function Scene3D() {
 
       {/* House content, centred at the origin. */}
       <group position={[-cx, 0, -cz]}>
+        {(project.landscape?.objects || []).map((o) => (
+          <LandscapeObject3D key={o.id} o={o} />
+        ))}
         {visible.map((level) => (
           <LevelMeshes
             key={level.id}
@@ -250,6 +254,64 @@ function FloorSlab({ bbox, y, color, opacity, transparent, thickness, below }) {
     <mesh position={[cx, cy, cz]} receiveShadow>
       <boxGeometry args={[w, thickness, d]} />
       <meshStandardMaterial color={color} roughness={1} metalness={0} transparent={transparent} opacity={opacity} />
+    </mesh>
+  )
+}
+
+// Simple massing for a landscape object at grade (flat terrain).
+function LandscapeObject3D({ o }) {
+  const st = LANDSCAPE_STYLE[o.kind] || { fill: '#D8D3C8', prim: 'box' }
+  const rot = [0, (-(o.rotation || 0) * Math.PI) / 180, 0]
+  const mat = <meshStandardMaterial color={st.fill} roughness={1} metalness={0} />
+
+  if (st.prim === 'tree') {
+    const canopy = Math.min(o.w, o.d) / 2
+    const trunkH = Math.max(24, o.heightIn * 0.35)
+    return (
+      <group position={[o.x, 0, o.y]}>
+        <mesh position={[0, trunkH / 2, 0]} castShadow>
+          <cylinderGeometry args={[Math.max(3, o.w * 0.04), Math.max(4, o.w * 0.05), trunkH, 8]} />
+          <meshStandardMaterial color="#8a6f52" roughness={1} />
+        </mesh>
+        <mesh position={[0, trunkH + canopy * 0.7, 0]} castShadow>
+          <sphereGeometry args={[canopy, 16, 12]} />
+          {mat}
+        </mesh>
+      </group>
+    )
+  }
+  if (st.prim === 'shrub') {
+    const r = Math.min(o.w, o.d) / 2
+    return (
+      <mesh position={[o.x, r * 0.8, o.y]} castShadow>
+        <sphereGeometry args={[r, 12, 10]} />
+        {mat}
+      </mesh>
+    )
+  }
+  if (st.prim === 'cylinder') {
+    return (
+      <mesh position={[o.x, o.heightIn / 2, o.y]} rotation={rot} castShadow>
+        <cylinderGeometry args={[o.w / 2, o.w / 2, Math.max(6, o.heightIn), 16]} />
+        {mat}
+      </mesh>
+    )
+  }
+  if (st.prim === 'flat' || st.prim === 'water') {
+    const y = st.prim === 'water' ? -1 : 1
+    return (
+      <mesh position={[o.x, y, o.y]} rotation={rot} receiveShadow>
+        <boxGeometry args={[o.w, 2, o.d]} />
+        {mat}
+      </mesh>
+    )
+  }
+  // box / bed (structures, beds, decks, fences)
+  const h = Math.max(6, o.heightIn)
+  return (
+    <mesh position={[o.x, h / 2, o.y]} rotation={rot} castShadow receiveShadow>
+      <boxGeometry args={[o.w, h, o.d]} />
+      {mat}
     </mesh>
   )
 }

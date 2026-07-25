@@ -7,6 +7,7 @@ import { fitView } from '../lib/viewport.js'
 import { usePlanInteractions } from '../hooks/usePlanInteractions.js'
 import { roomPolygon } from '../lib/geometry.js'
 import RoomsLayer from './RoomsLayer.jsx'
+import LandscapeLayer from './LandscapeLayer.jsx'
 import { COLOR } from '../tokens.js'
 
 const ptsStr = (pts) => pts.map((p) => `${p.x},${p.y}`).join(' ')
@@ -24,6 +25,7 @@ export default function PlanCanvas() {
   const view = useProject((s) => s.project.view)
   const vp = useViewport()
   const tool = useEditor((s) => s.tool)
+  const canvasMode = useEditor((s) => s.canvasMode)
   const fitOnLoad = useSession((s) => s.fitOnLoad)
 
   const { onPointerDown, onPointerMove, onPointerUp } = usePlanInteractions(svgRef, spaceRef)
@@ -102,7 +104,14 @@ export default function PlanCanvas() {
             </g>
           )}
 
-          <RoomsLayer zoom={vp.zoom} plot={plot} />
+          {canvasMode === 'landscape' ? (
+            <LandscapeLayer interactive zoom={vp.zoom} />
+          ) : (
+            <>
+              <LandscapeLayer interactive={false} zoom={vp.zoom} />
+              <RoomsLayer zoom={vp.zoom} plot={plot} />
+            </>
+          )}
 
           {/* Plot boundary on top. */}
           <rect x={0} y={0} width={plot.widthIn} height={plot.depthIn} fill="none" stroke={COLOR.lineStrong} strokeWidth={1.5} vectorEffect="non-scaling-stroke" style={{ pointerEvents: 'none' }} />

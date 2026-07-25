@@ -82,6 +82,13 @@ export function migrateProject(project) {
   if (!project?.levels) return project
   return {
     ...project,
+    landscape: {
+      objects: [],
+      zones: [],
+      plants: [],
+      systems: [],
+      ...(project.landscape || {}),
+    },
     levels: project.levels.map((l) => ({
       ...l,
       rooms: (l.rooms || []).map(migrateRoom),
@@ -220,6 +227,51 @@ export const useProject = create(
         set((s) => ({
           project: touch(s.project, {
             view: { ...s.project.view, showGhostBelow: !s.project.view.showGhostBelow },
+          }),
+        })),
+
+      // ── Landscape objects (site-level, shared across levels) ──
+      addLandscapeObject: (obj) =>
+        set((s) => {
+          const o = {
+            id: uid(),
+            kind: obj.kind,
+            label: obj.label,
+            x: Math.round(obj.x),
+            y: Math.round(obj.y),
+            w: Math.round(obj.w),
+            d: Math.round(obj.d),
+            heightIn: Math.round(obj.heightIn ?? 96),
+            rotation: obj.rotation ?? 0,
+          }
+          return {
+            project: touch(s.project, {
+              landscape: { ...s.project.landscape, objects: [...s.project.landscape.objects, o] },
+            }),
+            _lastLandscapeId: o.id,
+          }
+        }),
+
+      updateLandscapeObject: (id, patch) =>
+        set((s) => {
+          const clean = {}
+          for (const [k, v] of Object.entries(patch)) clean[k] = ['x', 'y', 'w', 'd', 'heightIn', 'rotation'].includes(k) ? Math.round(v) : v
+          if ('w' in clean) clean.w = Math.max(6, clean.w)
+          if ('d' in clean) clean.d = Math.max(6, clean.d)
+          return {
+            project: touch(s.project, {
+              landscape: {
+                ...s.project.landscape,
+                objects: s.project.landscape.objects.map((o) => (o.id === id ? { ...o, ...clean } : o)),
+              },
+            }),
+          }
+        }),
+
+      removeLandscapeObject: (id) =>
+        set((s) => ({
+          project: touch(s.project, {
+            landscape: { ...s.project.landscape, objects: s.project.landscape.objects.filter((o) => o.id !== id) },
           }),
         })),
 

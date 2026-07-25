@@ -7,6 +7,7 @@ const CLEAR = {
   selectedOpeningId: null,
   selectedFixtureId: null,
   selectedRunId: null,
+  selectedLandscapeId: null,
 }
 
 // Transient editor state: active tool, selection, and live drag preview. None of
@@ -22,6 +23,12 @@ export const useEditor = create((set) => ({
   selectedOpeningId: null, // selected opening
   selectedFixtureId: null, // selected utility fixture
   selectedRunId: null, // selected utility run
+  selectedLandscapeId: null, // selected landscape object
+
+  // Site / landscape
+  canvasMode: 'building', // 'building' | 'landscape'
+  pendingLandscape: null, // { kind, label, w, d, heightIn } armed for placement
+  landscapePreview: null, // { id, x, y, w, d } while moving/resizing
 
   // Utilities
   activeSystem: 'electrical',
@@ -54,7 +61,15 @@ export const useEditor = create((set) => ({
   selectOpening: (selectedOpeningId) => set({ ...CLEAR, selectedOpeningId }),
   selectFixture: (selectedFixtureId) => set({ ...CLEAR, selectedFixtureId }),
   selectRun: (selectedRunId) => set({ ...CLEAR, selectedRunId }),
+  selectLandscape: (selectedLandscapeId) => set({ ...CLEAR, selectedLandscapeId }),
   clearSelection: () => set({ ...CLEAR }),
+
+  // Site / landscape actions
+  setCanvasMode: (canvasMode) => set({ ...CLEAR, canvasMode, tool: 'select', pendingLandscape: null, landscapePreview: null }),
+  armLandscape: (pendingLandscape) => set({ ...CLEAR, pendingLandscape }),
+  disarmLandscape: () => set({ pendingLandscape: null }),
+  setLandscapePreview: (landscapePreview) => set({ landscapePreview }),
+  clearLandscapePreview: () => set({ landscapePreview: null }),
 
   // Utilities
   setActiveSystem: (activeSystem) => set({ activeSystem }),

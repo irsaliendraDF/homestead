@@ -14,6 +14,7 @@ import ToolRail from './components/ToolRail.jsx'
 import RoomLabels from './components/RoomLabels.jsx'
 import DragDimensions from './components/DragDimensions.jsx'
 import ViewToggle from './components/ViewToggle.jsx'
+import SiteToggle from './components/SiteToggle.jsx'
 import Controls3D from './components/Controls3D.jsx'
 
 // Lazy so three.js only loads when you actually enter the 3D view.
@@ -57,13 +58,16 @@ export default function App() {
         useEditor.getState().setViewMode(m === '3d' ? 'plan' : '3d')
       } else if (e.key === 'r' || e.key === 'R') {
         const ed = useEditor.getState()
-        if (ed.selectedFixtureId) {
+        if (ed.selectedLandscapeId) {
+          const o = useProject.getState().project.landscape.objects.find((x) => x.id === ed.selectedLandscapeId)
+          if (o) useProject.getState().updateLandscapeObject(o.id, { rotation: ((o.rotation || 0) + 90) % 360 })
+        } else if (ed.selectedFixtureId) {
           const p = useProject.getState().project
           const lvl = p.levels.find((l) => l.id === p.view.activeLevelId)
           const f = (lvl.fixtures || []).find((x) => x.id === ed.selectedFixtureId)
           if (f) useProject.getState().updateFixture(f.id, { rotation: ((f.rotation || 0) + 90) % 360 })
         } else if (ed.pendingFixture) ed.rotatePending()
-        else ed.setTool('room')
+        else if (ed.canvasMode !== 'landscape') ed.setTool('room')
       } else if (e.key === 'd' || e.key === 'D') useEditor.getState().setTool('door')
       else if (e.key === 'w' || e.key === 'W') useEditor.getState().setTool('window')
       else if (e.key === 'u' || e.key === 'U') useEditor.getState().setTool('utilities')
@@ -72,19 +76,21 @@ export default function App() {
         const ed = useEditor.getState()
         if (ed.runDraft) ed.cancelRun()
         else if (ed.pendingFixture) ed.disarmFixture()
+        else if (ed.pendingLandscape) ed.disarmLandscape()
         else {
-          ed.setTool('select')
+          if (ed.canvasMode !== 'landscape') ed.setTool('select')
           ed.clearSelection()
         }
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        const { selectedId, selectedWallId, selectedOpeningId, selectedFixtureId, selectedRunId } = useEditor.getState()
-        if (selectedId || selectedWallId || selectedOpeningId || selectedFixtureId || selectedRunId) {
+        const { selectedId, selectedWallId, selectedOpeningId, selectedFixtureId, selectedRunId, selectedLandscapeId } = useEditor.getState()
+        if (selectedId || selectedWallId || selectedOpeningId || selectedFixtureId || selectedRunId || selectedLandscapeId) {
           e.preventDefault()
           if (selectedId) useProject.getState().removeRoom(selectedId)
           if (selectedWallId) useProject.getState().removeWall(selectedWallId)
           if (selectedOpeningId) useProject.getState().removeOpening(selectedOpeningId)
           if (selectedFixtureId) useProject.getState().removeFixture(selectedFixtureId)
           if (selectedRunId) useProject.getState().removeRun(selectedRunId)
+          if (selectedLandscapeId) useProject.getState().removeLandscapeObject(selectedLandscapeId)
           useEditor.getState().clearSelection()
         }
       }
@@ -102,6 +108,7 @@ export default function App() {
           <span className="font-display text-lg italic leading-none">{name}</span>
         </div>
         <div className="flex items-center gap-3">
+          {ready && viewMode === 'plan' && <SiteToggle />}
           {ready && <ViewToggle />}
           <div className="flex items-center gap-1">
           <button

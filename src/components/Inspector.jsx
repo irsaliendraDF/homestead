@@ -12,8 +12,10 @@ import { REGION, UNITS, ROOM_TYPES, SYSTEMS } from '../config.js'
 import { formatFeetInches } from '../lib/units.js'
 import { roomAreaSqft, roomBounds, roomPolygon, overlappingRoomIds, sharedPairs } from '../lib/geometry.js'
 import { runLengthIn, effectiveRunPoints } from '../lib/runs.js'
+import { setbacks, distanceToHouse, houseBounds } from '../lib/landscape.js'
 import DimensionInput from './DimensionInput.jsx'
 import UtilitiesPanel from './UtilitiesPanel.jsx'
+import LandscapePanel from './LandscapePanel.jsx'
 import { RotateCw } from 'lucide-react'
 
 const k2 = (a, b) => [a, b].sort().join('|')
@@ -35,6 +37,15 @@ const SWING_STYLES = new Set(['single', 'double', 'casement', 'awning'])
 const HINGE_STYLES = new Set(['single', 'casement'])
 const isHinged = (o) => SWING_STYLES.has(o.style)
 const hasHinge = (o) => HINGE_STYLES.has(o.style)
+
+function SetbackRow({ label, value }) {
+  return (
+    <div className="flex items-center justify-between text-xs text-muted">
+      <span>{label}</span>
+      <span className="num text-ink">{formatFeetInches(value)}</span>
+    </div>
+  )
+}
 
 // Right-hand inspector. Phase 1 scope: project management, plot size, and the
 // active level's settings. Room properties arrive in Phase 2.
@@ -61,6 +72,9 @@ export default function Inspector() {
   const fixture = active ? (active.fixtures || []).find((f) => f.id === selectedFixtureId) : null
   const run = active ? (active.runs || []).find((r) => r.id === selectedRunId) : null
   const otherLevels = project.levels.filter((l) => l.id !== project.view.activeLevelId)
+  const canvasMode = useEditor((s) => s.canvasMode)
+  const selectedLandscapeId = useEditor((s) => s.selectedLandscapeId)
+  const lobj = project.landscape.objects.find((o) => o.id === selectedLandscapeId)
 
   // Rooms that share a wall with the selected room, and whether they're joined.
   const neighbors = room
@@ -73,6 +87,53 @@ export default function Inspector() {
     : []
 
   const OPENING_TYPES = ['door', 'window', 'archway', 'garage']
+
+  // Landscape (Site) mode takes over the inspector.
+  if (canvasMode === 'landscape') {
+    if (!lobj) return <div className="flex h-full flex-col overflow-y-auto"><LandscapePanel /></div>
+    const sb = setbacks(lobj, project.plot)
+    const toHouse = distanceToHouse(lobj, houseBounds(project))
+    return (
+      <div className="flex h-full flex-col overflow-y-auto">
+        <Section title={lobj.label}>
+          <div className="grid grid-cols-2 gap-2">
+            <DimensionInput label="Width" valueIn={lobj.w} min={6} onCommit={(v) => useProject.getState().updateLandscapeObject(lobj.id, { w: v })} />
+            <DimensionInput label="Depth" valueIn={lobj.d} min={6} onCommit={(v) => useProject.getState().updateLandscapeObject(lobj.id, { d: v })} />
+          </div>
+          <DimensionInput label="Height" valueIn={lobj.heightIn} min={0} onCommit={(v) => useProject.getState().updateLandscapeObject(lobj.id, { heightIn: v })} />
+          <button
+            type="button"
+            onClick={() => useProject.getState().updateLandscapeObject(lobj.id, { rotation: ((lobj.rotation || 0) + 90) % 360 })}
+            className="flex items-center justify-center gap-1.5 rounded border border-line px-2 py-1.5 text-xs text-ink hover:bg-accentSoft"
+          >
+            <RotateCw size={14} strokeWidth={1.75} /> Rotate 90°
+          </button>
+        </Section>
+
+        <Section title="Setbacks">
+          <SetbackRow label="Front (top)" value={sb.front} />
+          <SetbackRow label="Rear (bottom)" value={sb.rear} />
+          <SetbackRow label="Left" value={sb.left} />
+          <SetbackRow label="Right" value={sb.right} />
+          {toHouse != null && <SetbackRow label="To house" value={toHouse} />}
+          <p className="text-[11px] leading-tight text-muted">Distance to each property line and to the house.</p>
+        </Section>
+
+        <Section title="">
+          <button
+            type="button"
+            onClick={() => {
+              useProject.getState().removeLandscapeObject(lobj.id)
+              useEditor.getState().clearSelection()
+            }}
+            className="flex items-center justify-center gap-1.5 rounded border border-line px-2 py-1.5 text-xs text-alert hover:bg-alert/10"
+          >
+            <Trash2 size={14} strokeWidth={1.75} /> Delete {lobj.label.toLowerCase()}
+          </button>
+        </Section>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
