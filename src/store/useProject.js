@@ -23,6 +23,7 @@ export function makeLevel({ name, index }) {
     ceilingHeightIn: index < 0 ? DEFAULTS.BASEMENT_CEILING_IN : DEFAULTS.CEILING_HEIGHT_IN,
     rooms: [],
     walls: [], // freestanding wall segments (not tied to a room)
+    furniture: [], // appliances / cupboards / bath / stairs (inside the house)
     mergedPairs: [], // "idA|idB" pairs whose shared wall is removed (joined into an L)
     openings: [],
     fixtures: [],
@@ -94,6 +95,7 @@ export function migrateProject(project) {
       ...l,
       rooms: (l.rooms || []).map(migrateRoom),
       walls: l.walls || [],
+      furniture: l.furniture || [],
       fixtures: l.fixtures || [],
       runs: l.runs || [],
       mergedPairs: l.mergedPairs || [],
@@ -109,10 +111,39 @@ export function migrateProject(project) {
 
 // Available styles per opening type (modern set). First entry is the default.
 export const OPENING_STYLES = {
-  door: ['single', 'double', 'sliding', 'pocket', 'bifold'],
-  window: ['picture', 'casement', 'doublehung', 'sliding', 'awning'],
+  door: ['single', 'double', 'sliding', 'pocket', 'bifold', 'barn', 'dutch'],
+  window: ['picture', 'casement', 'doublehung', 'sliding', 'awning', 'bay', 'hopper'],
   archway: ['open'],
   garage: ['sectional'],
+}
+
+// Quick size presets per type (inches). Selecting one sets width + height.
+export const OPENING_SIZES = {
+  door: [
+    { label: `28" × 6'8" (bath)`, w: 28, h: 80 },
+    { label: `30" × 6'8"`, w: 30, h: 80 },
+    { label: `32" × 6'8" (interior)`, w: 32, h: 80 },
+    { label: `36" × 6'8" (entry)`, w: 36, h: 80 },
+    { label: `6' × 6'8" (double)`, w: 72, h: 80 },
+    { label: `8' × 6'8" (patio)`, w: 96, h: 80 },
+  ],
+  window: [
+    { label: `2' × 3'`, w: 24, h: 36 },
+    { label: `3' × 4'`, w: 36, h: 48 },
+    { label: `3' × 5'`, w: 36, h: 60 },
+    { label: `4' × 4'`, w: 48, h: 48 },
+    { label: `5' × 4' (picture)`, w: 60, h: 48 },
+    { label: `6' × 5' (picture)`, w: 72, h: 60 },
+  ],
+  garage: [
+    { label: `9' × 7' (single)`, w: 108, h: 84 },
+    { label: `16' × 7' (double)`, w: 192, h: 84 },
+  ],
+  archway: [
+    { label: `4' × 7'`, w: 48, h: 84 },
+    { label: `5' × 7'`, w: 60, h: 84 },
+    { label: `6' × 7'`, w: 72, h: 84 },
+  ],
 }
 
 // Default size (inches) + style per opening type.
@@ -655,6 +686,39 @@ export const useProject = create(
                 mergedPairs: (l.mergedPairs || []).filter((k) => k !== key),
               })),
             }),
+          }
+        }),
+
+      // ── Furniture (inside, on the active level) ─────────
+      addFurniture: ({ kind, label, category, x, y, w, d, h, rotation = 0 }) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          const item = { id: uid(), kind, label, category, x: Math.round(x), y: Math.round(y), w: Math.round(w), d: Math.round(d), heightIn: Math.round(h ?? 36), rotation }
+          return {
+            project: touch(s.project, { levels: mapLevel(s.project.levels, levelId, (l) => ({ ...l, furniture: [...(l.furniture || []), item] })) }),
+            _lastFurnitureId: item.id,
+          }
+        }),
+
+      updateFurniture: (id, patch) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          const clean = {}
+          for (const [k, v] of Object.entries(patch)) clean[k] = ['x', 'y', 'w', 'd', 'heightIn', 'rotation'].includes(k) ? Math.round(v) : v
+          if ('w' in clean) clean.w = Math.max(4, clean.w)
+          if ('d' in clean) clean.d = Math.max(4, clean.d)
+          return {
+            project: touch(s.project, {
+              levels: mapLevel(s.project.levels, levelId, (l) => ({ ...l, furniture: (l.furniture || []).map((f) => (f.id === id ? { ...f, ...clean } : f)) })),
+            }),
+          }
+        }),
+
+      removeFurniture: (id) =>
+        set((s) => {
+          const levelId = s.project.view.activeLevelId
+          return {
+            project: touch(s.project, { levels: mapLevel(s.project.levels, levelId, (l) => ({ ...l, furniture: (l.furniture || []).filter((f) => f.id !== id) })) }),
           }
         }),
 

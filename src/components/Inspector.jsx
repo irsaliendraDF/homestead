@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { FilePlus2, Copy, Trash2, Check, FileDown, Download, Upload } from 'lucide-react'
-import { useProject, OPENING_STYLES } from '../store/useProject.js'
+import { useProject, OPENING_STYLES, OPENING_SIZES } from '../store/useProject.js'
 import { useEditor } from '../store/useEditor.js'
 import {
   useSession,
@@ -22,6 +22,7 @@ import DimensionInput from './DimensionInput.jsx'
 import UtilitiesPanel from './UtilitiesPanel.jsx'
 import LandscapePanel from './LandscapePanel.jsx'
 import GardenPanel from './GardenPanel.jsx'
+import FurniturePanel from './FurniturePanel.jsx'
 import { RotateCw } from 'lucide-react'
 
 const k2 = (a, b) => [a, b].sort().join('|')
@@ -98,6 +99,8 @@ export default function Inspector() {
   const tool = useEditor((s) => s.tool)
   const fixture = active ? (active.fixtures || []).find((f) => f.id === selectedFixtureId) : null
   const run = active ? (active.runs || []).find((r) => r.id === selectedRunId) : null
+  const selectedFurnitureId = useEditor((s) => s.selectedFurnitureId)
+  const furn = active ? (active.furniture || []).find((f) => f.id === selectedFurnitureId) : null
   const otherLevels = project.levels.filter((l) => l.id !== project.view.activeLevelId)
   const canvasMode = useEditor((s) => s.canvasMode)
   const selectedLandscapeId = useEditor((s) => s.selectedLandscapeId)
@@ -276,6 +279,26 @@ export default function Inspector() {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
+      {/* Selected furniture */}
+      {furn && (
+        <Section title={furn.label || 'Furniture'}>
+          <div className="grid grid-cols-2 gap-2">
+            <DimensionInput label="Width" valueIn={furn.w} min={4} onCommit={(v) => useProject.getState().updateFurniture(furn.id, { w: v })} />
+            <DimensionInput label="Depth" valueIn={furn.d} min={4} onCommit={(v) => useProject.getState().updateFurniture(furn.id, { d: v })} />
+          </div>
+          <DimensionInput label="Height" valueIn={furn.heightIn} min={2} onCommit={(v) => useProject.getState().updateFurniture(furn.id, { heightIn: v })} />
+          <button type="button" onClick={() => useProject.getState().updateFurniture(furn.id, { rotation: ((furn.rotation || 0) + 90) % 360 })} className="flex items-center justify-center gap-1.5 rounded border border-line px-2 py-1.5 text-xs text-ink hover:bg-accentSoft">
+            <RotateCw size={14} strokeWidth={1.75} /> Rotate 90°
+          </button>
+          <button type="button" onClick={() => { useProject.getState().removeFurniture(furn.id); useEditor.getState().clearSelection() }} className="flex items-center justify-center gap-1.5 rounded border border-line px-2 py-1.5 text-xs text-alert hover:bg-alert/10">
+            <Trash2 size={14} strokeWidth={1.75} /> Delete
+          </button>
+        </Section>
+      )}
+
+      {/* Furniture palette when the tool is active and nothing selected */}
+      {tool === 'furniture' && !furn && <FurniturePanel />}
+
       {/* Selected fixture */}
       {fixture && (
         <Section title="Fixture">
@@ -411,6 +434,24 @@ export default function Inspector() {
             </div>
           )}
 
+          {OPENING_SIZES[opening.type] && (
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-muted">Size preset</span>
+              <select
+                value=""
+                onChange={(e) => {
+                  const p = OPENING_SIZES[opening.type][Number(e.target.value)]
+                  if (p) useProject.getState().updateOpening(opening.id, { widthIn: p.w, heightIn: p.h })
+                }}
+                className="w-full rounded border border-line bg-canvas px-2 py-1 text-sm text-ink"
+              >
+                <option value="">Custom…</option>
+                {OPENING_SIZES[opening.type].map((p, i) => (
+                  <option key={i} value={i}>{p.label}</option>
+                ))}
+              </select>
+            </label>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <DimensionInput label="Width" valueIn={opening.widthIn} min={6} onCommit={(v) => useProject.getState().updateOpening(opening.id, { widthIn: v })} />
             <DimensionInput label="Height" valueIn={opening.heightIn} min={6} onCommit={(v) => useProject.getState().updateOpening(opening.id, { heightIn: v })} />

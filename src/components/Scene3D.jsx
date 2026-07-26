@@ -8,6 +8,7 @@ import { resolveWalls, roomBounds } from '../lib/geometry.js'
 import { openingWorldSegment, wallSpans } from '../lib/openings.js'
 import { effectiveRunPoints, fixtureFootprint } from '../lib/runs.js'
 import { LANDSCAPE_STYLE, houseBounds } from '../lib/landscape.js'
+import { furnitureStyle, stairTreads } from '../lib/furniture.js'
 import { roofGeometry } from '../lib/roof.js'
 import { cropColor, plantSpacing } from '../lib/companions.js'
 import { SYSTEMS } from '../config.js'
@@ -251,6 +252,11 @@ function LevelMeshes({ level, height, beginCeilingDrag, dragging, dimmed, showCe
           )
         })}
 
+      {/* Furniture (appliances / cupboards / bath / stairs) */}
+      {(level.furniture || []).map((f) => (
+        <Furniture3D key={f.id} f={f} floorY={floorY} />
+      ))}
+
       {/* Utility runs (in the floor gap) + risers */}
       {(level.runs || [])
         .filter((r) => !hidden.includes(r.system))
@@ -302,6 +308,7 @@ function WallWithOpenings({ w, floorY, height, openingSegs, opacity, transparent
       b: Math.min(len, os.b - ws),
       sill: os.sillHeightIn,
       head: Math.min(height, os.sillHeightIn + os.heightIn),
+      type: os.type,
     }))
 
   const pieces = wallSpans(len, matched, height)
@@ -320,6 +327,29 @@ function WallWithOpenings({ w, floorY, height, openingSegs, opacity, transparent
           <mesh key={i} position={position} castShadow receiveShadow onPointerDown={onWallDown}>
             <boxGeometry args={args} />
             <meshStandardMaterial color={color} roughness={1} metalness={0} transparent={transparent} opacity={opacity} />
+          </mesh>
+        )
+      })}
+
+      {/* Glass panes (windows) + door/garage slabs in the openings. */}
+      {matched.map((m, i) => {
+        if (m.type === 'archway') return null
+        const gh = m.head - m.sill
+        if (gh <= 0 || m.b <= m.a) return null
+        const along = ws + (m.a + m.b) / 2
+        const cy = floorY + (m.sill + m.head) / 2
+        const isWin = m.type === 'window'
+        const paneT = isWin ? Math.max(0.5, t * 0.2) : Math.max(1.5, t * 0.5)
+        const pos = horizontal ? [along, cy, line] : [line, cy, along]
+        const pargs = horizontal ? [m.b - m.a - 2, gh - 2, paneT] : [paneT, gh - 2, m.b - m.a - 2]
+        return (
+          <mesh key={`p${i}`} position={pos}>
+            <boxGeometry args={pargs} />
+            {isWin ? (
+              <meshStandardMaterial color="#A9C6D6" roughness={0.1} metalness={0.1} transparent opacity={0.4} />
+            ) : (
+              <meshStandardMaterial color={m.type === 'garage' ? '#CFC9BF' : '#9A7A52'} roughness={0.8} />
+            )}
           </mesh>
         )
       })}
@@ -348,6 +378,56 @@ function FloorSlab({ bbox, y, color, opacity, transparent, thickness, below }) {
       <boxGeometry args={[w, thickness, d]} />
       <meshStandardMaterial color={color} roughness={1} metalness={0} transparent={transparent} opacity={opacity} />
     </mesh>
+  )
+}
+
+// Furniture massing, with a few recognizable shapes. Local coords inside a
+// rotated group at the item's centre on the floor.
+function Furniture3D({ f, floorY }) {
+  const st = furnitureStyle(f.kind)
+  const h = Math.max(4, f.heightIn)
+  const rot = [0, (-(f.rotation || 0) * Math.PI) / 180, 0]
+  const mat = <meshStandardMaterial color={st.fill} roughness={0.9} metalness={0} />
+
+  if (f.kind === 'stairs') {
+    const treads = stairTreads(f.d, h)
+    return (
+      <group position={[f.x, floorY, f.y]} rotation={rot}>
+        {treads.map((t, i) => (
+          <mesh key={i} position={[0, (t.y0 + t.y1) / 2, -f.d / 2 + (t.z0 + t.z1) / 2]} castShadow receiveShadow>
+            <boxGeometry args={[f.w, t.y1 - t.y0, t.z1 - t.z0]} />
+            {mat}
+          </mesh>
+        ))}
+      </group>
+    )
+  }
+
+  return (
+    <group position={[f.x, floorY, f.y]} rotation={rot}>
+      <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
+        <boxGeometry args={[f.w, h, f.d]} />
+        {mat}
+      </mesh>
+      {f.kind === 'bathtub' && (
+        <mesh position={[0, h * 0.72, 0]}>
+          <boxGeometry args={[f.w - 8, h * 0.55, f.d - 8]} />
+          <meshStandardMaterial color="#F4F6F7" roughness={0.6} />
+        </mesh>
+      )}
+      {f.kind === 'range' && (
+        <mesh position={[0, h - 1, 0]}>
+          <boxGeometry args={[f.w, 2, f.d]} />
+          <meshStandardMaterial color="#3A3C40" roughness={0.5} />
+        </mesh>
+      )}
+      {(f.kind === 'vanity' || f.kind === 'base_cabinet' || f.kind === 'island' || f.kind === 'counter') && (
+        <mesh position={[0, h + 0.5, 0]}>
+          <boxGeometry args={[f.w + 1, 1.5, f.d + 1]} />
+          <meshStandardMaterial color="#E7E3DA" roughness={0.5} />
+        </mesh>
+      )}
+    </group>
   )
 }
 
@@ -404,6 +484,19 @@ function LandscapeObject3D({ o }) {
           <sphereGeometry args={[canopy, 16, 12]} />
           {mat}
         </mesh>
+      </group>
+    )
+  }
+  if (st.prim === 'stairs') {
+    const treads = stairTreads(o.d, o.heightIn)
+    return (
+      <group position={[o.x, 0, o.y]} rotation={rot}>
+        {treads.map((t, i) => (
+          <mesh key={i} position={[0, (t.y0 + t.y1) / 2, -o.d / 2 + (t.z0 + t.z1) / 2]} castShadow receiveShadow>
+            <boxGeometry args={[o.w, t.y1 - t.y0, t.z1 - t.z0]} />
+            {mat}
+          </mesh>
+        ))}
       </group>
     )
   }

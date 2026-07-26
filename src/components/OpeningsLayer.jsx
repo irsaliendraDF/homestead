@@ -77,7 +77,7 @@ function Glyph({ opening, geom, stroke }) {
 
   if (type === 'door') {
     if (style === 'double') return <DoubleDoor {...geom} stroke={stroke} />
-    if (style === 'sliding') return <Sliding {...geom} stroke={stroke} />
+    if (style === 'sliding' || style === 'barn') return <Sliding {...geom} stroke={stroke} />
     if (style === 'pocket') return <Pocket {...geom} stroke={stroke} />
     if (style === 'bifold') return <Bifold {...geom} stroke={stroke} />
     return <Leaf hinge={geom.hinge} other={geom.other} sn={geom.sn} width={geom.width} stroke={stroke} />
@@ -85,6 +85,7 @@ function Glyph({ opening, geom, stroke }) {
 
   // window
   if (style === 'sliding') return <Sliding {...geom} stroke={stroke} />
+  if (style === 'awning' || style === 'hopper') return <Awning {...geom} stroke={stroke} />
   if (style === 'casement')
     return (
       <>

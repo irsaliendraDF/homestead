@@ -11,12 +11,15 @@ const CLEAR = {
   selectedZoneId: null,
   selectedPlantId: null,
   selectedSystemId: null,
+  selectedFurnitureId: null,
 }
 
 // Transient editor state: active tool, selection, and live drag preview. None of
 // this is design data — it's outside the undoable store and never persisted.
 export const useEditor = create((set) => ({
-  tool: 'select', // 'select' | 'room' | 'wall' | 'door' | 'window'
+  tool: 'select', // 'select' | 'room' | 'wall' | 'door' | 'window' | 'furniture'
+  pendingFurniture: null, // { kind, label, category, w, d, h } armed for placement
+  furniturePreview: null, // { id, x, y, w, d, rotation } while moving/resizing
   viewMode: 'plan', // 'plan' | '3d' — only one canvas mounts at a time
   show3dAllLevels: true, // show every level stacked, vs the active one only
   showDims3d: false, // 3D exterior dimension labels
@@ -42,6 +45,7 @@ export const useEditor = create((set) => ({
   selectedZoneId: null,
   selectedPlantId: null,
   selectedSystemId: null,
+  selectedFurnitureId: null,
   zonePreview: null, // { id?, x, y, w, d } while drawing/editing a zone
   plantPreview: null, // { id, x, y } while moving a plant
   systemPreview: null, // { id, x, y, w, d } while moving/resizing a system
@@ -63,7 +67,13 @@ export const useEditor = create((set) => ({
   guides: { xs: [], ys: [] },
 
   setTool: (tool) =>
-    set({ tool, preview: null, previewId: null, wallPreview: null, openingPreview: null, pendingFixture: null, runArmed: false, runDraft: null, runCursor: null, guides: { xs: [], ys: [] } }),
+    set({ tool, preview: null, previewId: null, wallPreview: null, openingPreview: null, pendingFixture: null, pendingFurniture: null, runArmed: false, runDraft: null, runCursor: null, guides: { xs: [], ys: [] } }),
+
+  armFurniture: (pendingFurniture) => set({ ...CLEAR, tool: 'furniture', pendingFurniture }),
+  disarmFurniture: () => set({ pendingFurniture: null }),
+  selectFurniture: (selectedFurnitureId) => set({ ...CLEAR, selectedFurnitureId }),
+  setFurniturePreview: (furniturePreview) => set({ furniturePreview }),
+  clearFurniturePreview: () => set({ furniturePreview: null }),
 
   setOpeningPreview: (openingPreview) => set({ openingPreview }),
   clearOpeningPreview: () => set({ openingPreview: null }),

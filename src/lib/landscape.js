@@ -22,6 +22,7 @@ export const LANDSCAPE_STYLE = {
   pond: { shape: 'ellipse', fill: '#AEC9D2', stroke: '#8FB2BE', prim: 'water' },
   firepit: { shape: 'ellipse', fill: '#C2B6A6', stroke: '#A2937F', prim: 'cylinder' },
   coop: { shape: 'rect', fill: '#D8D3C8', stroke: '#B3AC9E', prim: 'box' },
+  stairs: { shape: 'rect', fill: '#C4BEB2', stroke: '#A39D90', prim: 'stairs' },
 }
 
 /** Displayed footprint (rotation swaps w/d at 90/270) + world edges. Center coords. */

@@ -83,6 +83,34 @@ export const LANDSCAPE_CATALOG = [
   { kind: 'pond', label: 'Pond', w: 10 * 12, d: 8 * 12, h: 0 },
   { kind: 'firepit', label: 'Fire pit', w: 4 * 12, d: 4 * 12, h: 18 },
   { kind: 'coop', label: 'Chicken coop', w: 6 * 12, d: 8 * 12, h: 6 * 12 },
+  { kind: 'stairs', label: 'Exterior stairs', w: 4 * 12, d: 6 * 12, h: 4 * 12 },
+]
+
+// Furniture / fixtures placed INSIDE the house (per level). category drives
+// grouping + color; w/d/h in inches.
+export const FURNITURE_CATALOG = [
+  // Appliances
+  { kind: 'fridge', label: 'Refrigerator', category: 'appliance', w: 36, d: 30, h: 70 },
+  { kind: 'range', label: 'Range / stove', category: 'appliance', w: 30, d: 26, h: 36 },
+  { kind: 'wall_oven', label: 'Wall oven', category: 'appliance', w: 30, d: 24, h: 48 },
+  { kind: 'dishwasher', label: 'Dishwasher', category: 'appliance', w: 24, d: 24, h: 34 },
+  { kind: 'microwave', label: 'Microwave', category: 'appliance', w: 24, d: 15, h: 14 },
+  { kind: 'range_hood', label: 'Range hood', category: 'appliance', w: 30, d: 20, h: 10 },
+  { kind: 'washer', label: 'Washer', category: 'appliance', w: 27, d: 27, h: 38 },
+  { kind: 'dryer', label: 'Dryer', category: 'appliance', w: 27, d: 27, h: 38 },
+  // Cupboards / cabinets
+  { kind: 'base_cabinet', label: 'Base cabinet', category: 'cabinet', w: 36, d: 24, h: 36 },
+  { kind: 'wall_cabinet', label: 'Wall cabinet', category: 'cabinet', w: 36, d: 13, h: 30 },
+  { kind: 'island', label: 'Island', category: 'cabinet', w: 60, d: 36, h: 36 },
+  { kind: 'pantry', label: 'Pantry', category: 'cabinet', w: 24, d: 24, h: 84 },
+  { kind: 'counter', label: 'Countertop run', category: 'cabinet', w: 96, d: 25, h: 36 },
+  // Bathroom
+  { kind: 'bathtub', label: 'Bathtub', category: 'bath', w: 60, d: 32, h: 22 },
+  { kind: 'shower', label: 'Shower', category: 'bath', w: 36, d: 36, h: 80 },
+  { kind: 'vanity', label: 'Vanity', category: 'bath', w: 36, d: 21, h: 32 },
+  { kind: 'toilet', label: 'Toilet', category: 'bath', w: 20, d: 28, h: 30 },
+  // Stairs (interior)
+  { kind: 'stairs', label: 'Stairs', category: 'stairs', w: 40, d: 10 * 12, h: 108 },
 ]
 
 // ── Garden ────────────────────────────────────────────────

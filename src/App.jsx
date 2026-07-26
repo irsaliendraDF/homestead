@@ -58,7 +58,12 @@ export default function App() {
         useEditor.getState().setViewMode(m === '3d' ? 'plan' : '3d')
       } else if (e.key === 'r' || e.key === 'R') {
         const ed = useEditor.getState()
-        if (ed.selectedLandscapeId) {
+        if (ed.selectedFurnitureId) {
+          const p = useProject.getState().project
+          const lvl = p.levels.find((l) => l.id === p.view.activeLevelId)
+          const f = (lvl.furniture || []).find((x) => x.id === ed.selectedFurnitureId)
+          if (f) useProject.getState().updateFurniture(f.id, { rotation: ((f.rotation || 0) + 90) % 360 })
+        } else if (ed.selectedLandscapeId) {
           const o = useProject.getState().project.landscape.objects.find((x) => x.id === ed.selectedLandscapeId)
           if (o) useProject.getState().updateLandscapeObject(o.id, { rotation: ((o.rotation || 0) + 90) % 360 })
         } else if (ed.selectedFixtureId) {
@@ -76,6 +81,7 @@ export default function App() {
         const ed = useEditor.getState()
         if (ed.runDraft) ed.cancelRun()
         else if (ed.pendingFixture) ed.disarmFixture()
+        else if (ed.pendingFurniture) ed.disarmFurniture()
         else if (ed.pendingLandscape) ed.disarmLandscape()
         else if (ed.gardenTool || ed.pendingPreset) ed.disarmGarden()
         else {
@@ -84,9 +90,10 @@ export default function App() {
         }
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         const s = useEditor.getState()
-        const anySel = s.selectedId || s.selectedWallId || s.selectedOpeningId || s.selectedFixtureId || s.selectedRunId || s.selectedLandscapeId || s.selectedZoneId || s.selectedPlantId || s.selectedSystemId
+        const anySel = s.selectedId || s.selectedWallId || s.selectedOpeningId || s.selectedFixtureId || s.selectedRunId || s.selectedLandscapeId || s.selectedZoneId || s.selectedPlantId || s.selectedSystemId || s.selectedFurnitureId
         if (anySel) {
           e.preventDefault()
+          if (s.selectedFurnitureId) useProject.getState().removeFurniture(s.selectedFurnitureId)
           if (s.selectedId) useProject.getState().removeRoom(s.selectedId)
           if (s.selectedWallId) useProject.getState().removeWall(s.selectedWallId)
           if (s.selectedOpeningId) useProject.getState().removeOpening(s.selectedOpeningId)

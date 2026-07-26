@@ -404,3 +404,29 @@ selectable (vector) ✓; multi-level + landscape produces a complete document �
 **Not merged to `main`** — pending Irene's look on the phase-8 preview. NEXT (Irene's batch):
 furnishings — stairs (in/out), appliances + cupboards, bathtub/showers, more door/window
 types + sizes, richer 3D detail.
+
+Phase 8 confirmed by Irene ("keep going"); merged to `main`.
+
+## Furnishings phase — 2026-07-26 — branch `phase-furnishings`
+
+Irene's batch. All delivered:
+- **Furniture tool** (building tool rail) → palette grouped by category: **Appliances** (fridge,
+  range, wall oven, dishwasher, microwave, range hood, washer, dryer), **Cupboards** (base/wall
+  cabinet, island, pantry, countertop run), **Bathroom** (bathtub, shower, vanity, toilet),
+  **Stairs** (interior). Stored per level (`level.furniture`), center-anchored, click-place,
+  move (snaps to walls), 8-handle resize, R to rotate. 2D plan glyphs (tub ellipse, toilet,
+  stair treads); 3D massing with detail (tub basin, range cooktop, cabinet counters, stepped
+  stairs). `src/lib/furniture.js` (catalog/style/`stairTreads`).
+- **Stairs outside too**: added to `LANDSCAPE_CATALOG` (Site mode) with stepped 3D.
+- **More door/window types**: doors + barn, dutch; windows + bay, hopper. **Size presets**
+  dropdown per opening type (interior/entry/patio door sizes, common window sizes) in the
+  inspector.
+- **Richer 3D**: window openings now show translucent **glass panes**, doors + garage show
+  **slabs**, cabinets get counters, ranges a cooktop, tubs a basin, stairs are stepped.
+- Bathtub/shower requested → both in the furniture Bathroom group (shower also still a plumbing
+  fixture in utilities).
+- `verify-furnishings.mjs`: catalog coverage, stair treads climb to floor height, expanded
+  styles + size presets, furniture store path + migration. All PASS. Build clean; main bundle
+  ~299 kB (three.js still its own chunk, jsPDF its own).
+
+**Not merged to `main`** — pending Irene's look on the preview.
