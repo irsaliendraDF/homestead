@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
+import * as THREE from 'three'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Grid, Html, Line } from '@react-three/drei'
 import { useProject } from '../store/useProject.js'
@@ -6,7 +7,8 @@ import { useEditor } from '../store/useEditor.js'
 import { resolveWalls, roomBounds } from '../lib/geometry.js'
 import { openingWorldSegment, wallSpans } from '../lib/openings.js'
 import { effectiveRunPoints, fixtureFootprint } from '../lib/runs.js'
-import { LANDSCAPE_STYLE } from '../lib/landscape.js'
+import { LANDSCAPE_STYLE, houseBounds } from '../lib/landscape.js'
+import { roofGeometry } from '../lib/roof.js'
 import { cropColor, plantSpacing } from '../lib/companions.js'
 import { SYSTEMS } from '../config.js'
 import { formatFeetInches } from '../lib/units.js'
@@ -28,9 +30,11 @@ export default function Scene3D() {
   const showAll = useEditor((s) => s.show3dAllLevels)
   const showDims = useEditor((s) => s.showDims3d)
   const showCeilings = useEditor((s) => s.showCeilings3d)
+  const showRoof = useEditor((s) => s.showRoof3d)
   const hidden = useEditor((s) => s.systemsHidden)
+  const ceilingDrag = useEditor((s) => s.ceilingDrag)
 
-  const { plot, levels, view } = project
+  const { plot, levels, view, roof } = project
   const cx = plot.widthIn / 2
   const cz = plot.depthIn / 2
   const maxDim = Math.max(plot.widthIn, plot.depthIn)
@@ -38,6 +42,41 @@ export default function Scene3D() {
   const visible = showAll ? levels : levels.filter((l) => l.id === view.activeLevelId)
   const activeId = view.activeLevelId
   const elevationOf = (id) => levels.find((l) => l.id === id)?.floorElevationIn ?? 0
+  // Live ceiling height (honors an in-progress 3D drag).
+  const ceilingOf = (l) => (ceilingDrag && ceilingDrag.levelId === l.id ? ceilingDrag.value : l.ceilingHeightIn)
+
+  // Drag a wall's top edge (in 3D) to change that level's ceiling height.
+  const dragRef = useRef(null)
+  const controlsRef = useRef(null)
+  const beginCeilingDrag = (levelId, clientY, ceiling) => {
+    dragRef.current = { levelId, startY: clientY, startCeiling: ceiling }
+    if (controlsRef.current) controlsRef.current.enabled = false // don't orbit while dragging
+    const k = maxDim / 900 // inches per pixel, scaled to house size
+    const onMove = (ev) => {
+      const d = dragRef.current
+      if (!d) return
+      const val = Math.max(60, Math.min(240, Math.round(d.startCeiling + (d.startY - ev.clientY) * k)))
+      useEditor.getState().setCeilingDrag({ levelId: d.levelId, value: val })
+    }
+    const onUp = () => {
+      dragRef.current = null
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      if (controlsRef.current) controlsRef.current.enabled = true
+      const cd = useEditor.getState().ceilingDrag
+      if (cd) {
+        useProject.getState().updateLevel(cd.levelId, { ceilingHeightIn: cd.value })
+        useEditor.getState().clearCeilingDrag()
+      }
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
+
+  // Roof sits on the top level's ceiling, over the whole-house footprint.
+  const topLevel = [...levels].sort((a, b) => b.index - a.index)[0]
+  const eaveY = topLevel ? topLevel.floorElevationIn + ceilingOf(topLevel) : 0
+  const houseBox = houseBounds(project)
 
   return (
     <Canvas
@@ -107,6 +146,9 @@ export default function Scene3D() {
           <LevelMeshes
             key={level.id}
             level={level}
+            height={ceilingOf(level)}
+            beginCeilingDrag={beginCeilingDrag}
+            dragging={ceilingDrag && ceilingDrag.levelId === level.id}
             dimmed={showAll && level.id !== activeId}
             showCeiling={showCeilings}
             showDims={showDims && level.id === activeId}
@@ -114,17 +156,30 @@ export default function Scene3D() {
             elevationOf={elevationOf}
           />
         ))}
+
+        {/* Roof massing over the whole-house footprint. */}
+        {showRoof && houseBox && (roof.style === 'flat' ? (
+          <mesh position={[houseBox.x + houseBox.w / 2, eaveY + 4, houseBox.y + houseBox.d / 2]} castShadow receiveShadow>
+            <boxGeometry args={[houseBox.w + 8, 8, houseBox.d + 8]} />
+            <meshStandardMaterial color="#D3CFC6" roughness={1} />
+          </mesh>
+        ) : (
+          <RoofMesh style={roof.style} bbox={houseBox} pitch={roof.pitchRise} eaveY={eaveY} />
+        ))}
       </group>
 
-      <OrbitControls makeDefault enableDamping dampingFactor={0.12} target={[0, 0, 0]} />
+      <OrbitControls ref={controlsRef} makeDefault enableDamping dampingFactor={0.12} target={[0, 0, 0]} />
     </Canvas>
   )
 }
 
-function LevelMeshes({ level, dimmed, showCeiling, showDims, hidden = [], elevationOf }) {
-  const height = level.ceilingHeightIn
+function LevelMeshes({ level, height, beginCeilingDrag, dragging, dimmed, showCeiling, showDims, hidden = [], elevationOf }) {
   const floorY = level.floorElevationIn
   const runY = floorY - 6 // schematic runs sit in the floor-assembly gap
+  const onWallDown = (e) => {
+    e.stopPropagation()
+    beginCeilingDrag(level.id, e.nativeEvent?.clientY ?? e.clientY, height)
+  }
 
   const walls = useMemo(() => {
     const merged = new Set(level.mergedPairs || [])
@@ -160,7 +215,7 @@ function LevelMeshes({ level, dimmed, showCeiling, showDims, hidden = [], elevat
   return (
     <group>
       {walls.map((w) => (
-        <WallWithOpenings key={w.id} w={w} floorY={floorY} height={height} openingSegs={openingSegs} opacity={opacity} transparent={transparent} />
+        <WallWithOpenings key={w.id} w={w} floorY={floorY} height={height} openingSegs={openingSegs} opacity={opacity} transparent={transparent} onWallDown={onWallDown} />
       ))}
 
       {bbox && (
@@ -174,6 +229,14 @@ function LevelMeshes({ level, dimmed, showCeiling, showDims, hidden = [], elevat
         walls
           .filter((w) => w.isExterior)
           .map((w) => <DimLabel key={`d${w.id}`} w={w} y={floorY + height} />)}
+
+      {dragging && bbox && (
+        <Html position={[(bbox.minX + bbox.maxX) / 2, floorY + height + 12, (bbox.minY + bbox.maxY) / 2]} center distanceFactor={900} style={{ pointerEvents: 'none' }}>
+          <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 13, color: '#fff', background: '#3D5A6C', padding: '2px 7px', borderRadius: 4, whiteSpace: 'nowrap' }}>
+            {formatFeetInches(height)}
+          </div>
+        </Html>
+      )}
 
       {/* Utility fixtures */}
       {(level.fixtures || [])
@@ -209,7 +272,7 @@ function LevelMeshes({ level, dimmed, showCeiling, showDims, hidden = [], elevat
 }
 
 // A wall, split into solid boxes around any openings on it (no CSG).
-function WallWithOpenings({ w, floorY, height, openingSegs, opacity, transparent }) {
+function WallWithOpenings({ w, floorY, height, openingSegs, opacity, transparent, onWallDown }) {
   const t = w.thicknessIn
   const color = w.isExterior ? MAT.wallExt : MAT.wallInt
   const horizontal = Math.abs(w.y1 - w.y2) < 0.5
@@ -219,7 +282,7 @@ function WallWithOpenings({ w, floorY, height, openingSegs, opacity, transparent
   if (!horizontal && !vertical) {
     const len = Math.hypot(w.x2 - w.x1, w.y2 - w.y1)
     return (
-      <mesh position={[(w.x1 + w.x2) / 2, floorY + height / 2, (w.y1 + w.y2) / 2]} rotation={[0, -Math.atan2(w.y2 - w.y1, w.x2 - w.x1), 0]} castShadow receiveShadow>
+      <mesh position={[(w.x1 + w.x2) / 2, floorY + height / 2, (w.y1 + w.y2) / 2]} rotation={[0, -Math.atan2(w.y2 - w.y1, w.x2 - w.x1), 0]} castShadow receiveShadow onPointerDown={onWallDown}>
         <boxGeometry args={[len, height, t]} />
         <meshStandardMaterial color={color} roughness={1} metalness={0} transparent={transparent} opacity={opacity} />
       </mesh>
@@ -254,13 +317,23 @@ function WallWithOpenings({ w, floorY, height, openingSegs, opacity, transparent
         const position = horizontal ? [along, cy, line] : [line, cy, along]
         const args = horizontal ? [pLen, pH, t] : [t, pH, pLen]
         return (
-          <mesh key={i} position={position} castShadow receiveShadow>
+          <mesh key={i} position={position} castShadow receiveShadow onPointerDown={onWallDown}>
             <boxGeometry args={args} />
             <meshStandardMaterial color={color} roughness={1} metalness={0} transparent={transparent} opacity={opacity} />
           </mesh>
         )
       })}
     </group>
+  )
+}
+
+function RoofMesh({ style, bbox, pitch, eaveY }) {
+  const geom = useMemo(() => roofGeometry(style, bbox, pitch, eaveY), [style, bbox.x, bbox.y, bbox.w, bbox.d, pitch, eaveY])
+  if (!geom) return null
+  return (
+    <mesh geometry={geom} castShadow receiveShadow>
+      <meshStandardMaterial color="#C9B7A0" roughness={1} side={THREE.DoubleSide} />
+    </mesh>
   )
 }
 

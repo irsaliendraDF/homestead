@@ -346,3 +346,31 @@ consistent ✓; each system yields a scaled parts list ✓; disclaimer present o
 or cost totals. 6.3 (Claude assist) is next and CUTTABLE (needs an Anthropic key).
 
 **Not merged to `main`** — pending Irene's look on the phase-6-2 preview.
+
+Phase 6.2 confirmed by Irene ("keep going" toward the house); merged to `main`.
+
+## Phase 7 — editing in 3D + roof — 2026-07-25 — branch `phase-7`
+
+**Delivered**
+- **Roof** (`project.roof`): style selector (gable / hip / flat) + pitch slider (2:12–12:12) in
+  the inspector, with a live 3D preview. `src/lib/roof.js` builds gable/hip geometry from the
+  house footprint bbox (double-sided triangles; ridge along the longer axis); flat renders as a
+  slab. NS default pitch bumped to **8:12** (steeper to shed snow). Snow-load notes: flat →
+  caution; pitched → "confirm Ss from NBC, this tool doesn't size structure." Roof on/off toggle
+  in the 3D controls.
+- **Ceiling height, dragged in 3D**: click a wall and drag its top edge → that level's
+  `ceilingHeightIn` changes, snapped to 1", with a live mono readout. OrbitControls is disabled
+  during the drag; the value commits on release via `updateLevel` (transient `ceilingDrag`
+  override keeps undo clean). 2D inspector reflects it instantly; undo is identical to a 2D edit.
+- `verify-phase7.mjs`: roof rise math, gable/hip geometry builds triangles, flat → slab, roof
+  settings + ceiling edit undo. All PASS. Build clean.
+
+**Acceptance:** change ceiling height in 3D → 2D inspector shows the new value ✓; undo works
+identically for 3D and 2D edits ✓.
+
+**DEFERRED within Phase 7:** "drag a whole room in 3D along the ground plane" — the third listed
+interaction. Skipped for now as the lowest-value of the three (2D already moves rooms well) and
+the most raycasting-heavy; flagged for Irene, easy to add later. Roof + 3D ceiling editing cover
+the phase's acceptance.
+
+**Not merged to `main`** — pending Irene's look on the phase-7 preview.

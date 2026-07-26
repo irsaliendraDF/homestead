@@ -65,7 +65,7 @@ export function makeDefaultProject() {
     schemaVersion: 1,
     plot: { widthIn: DEFAULTS.PLOT.widthIn, depthIn: DEFAULTS.PLOT.depthIn },
     levels,
-    roof: { style: 'gable', pitchRise: 6 },
+    roof: { style: 'gable', pitchRise: 8 }, // steeper default to shed NS snow
     landscape: { objects: [], zones: [], plants: [], systems: [] },
     view: {
       activeLevelId: main.id,
@@ -215,6 +215,8 @@ export const useProject = create(
             }),
           }
         }),
+
+      setRoof: (patch) => set((s) => ({ project: touch(s.project, { roof: { ...s.project.roof, ...patch } }) })),
 
       // name / ceilingHeightIn / footingDepthIn
       updateLevel: (levelId, patch) =>

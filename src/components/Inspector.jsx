@@ -690,6 +690,49 @@ export default function Inspector() {
           </label>
         </Section>
       )}
+
+      {/* Roof (live preview in 3D) */}
+      <Section title="Roof">
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-muted">Style</span>
+          <select
+            value={project.roof.style}
+            onChange={(e) => useProject.getState().setRoof({ style: e.target.value })}
+            className="w-full rounded border border-line bg-canvas px-2 py-1 text-sm capitalize text-ink"
+          >
+            {['gable', 'hip', 'flat'].map((st) => (
+              <option key={st} value={st} className="capitalize">{st}</option>
+            ))}
+          </select>
+        </label>
+        {project.roof.style !== 'flat' && (
+          <label className="flex flex-col gap-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted">Pitch</span>
+              <span className="num text-xs text-ink">{project.roof.pitchRise}:12</span>
+            </div>
+            <input
+              type="range"
+              min="2"
+              max="12"
+              step="1"
+              value={project.roof.pitchRise}
+              onChange={(e) => useProject.getState().setRoof({ pitchRise: Number(e.target.value) })}
+              className="w-full accent-accent"
+            />
+          </label>
+        )}
+        {project.roof.style === 'flat' ? (
+          <p className="rounded bg-alert/10 px-2 py-1.5 text-[11px] leading-tight text-alert">
+            Flat roofs carry snow load in Nova Scotia — plan drainage and confirm structure. A pitched roof sheds snow.
+          </p>
+        ) : (
+          <p className="text-[11px] leading-tight text-muted">
+            Pitch defaults steeper to shed NS snow. Confirm ground snow load (Ss) from NBC climatic data — this tool doesn't size structure.
+          </p>
+        )}
+        <p className="text-[11px] leading-tight text-muted">Switch to 3D to see it. Drag a wall's top edge in 3D to change ceiling height.</p>
+      </Section>
     </div>
   )
 }

@@ -21,6 +21,7 @@ export const useEditor = create((set) => ({
   show3dAllLevels: true, // show every level stacked, vs the active one only
   showDims3d: false, // 3D exterior dimension labels
   showCeilings3d: false, // ceiling planes (off by default so you can see in)
+  showRoof3d: true, // roof massing on/off
   selectedId: null, // selected room
   selectedWallId: null, // selected freestanding wall
   selectedOpeningId: null, // selected opening
@@ -44,6 +45,7 @@ export const useEditor = create((set) => ({
   zonePreview: null, // { id?, x, y, w, d } while drawing/editing a zone
   plantPreview: null, // { id, x, y } while moving a plant
   systemPreview: null, // { id, x, y, w, d } while moving/resizing a system
+  ceilingDrag: null, // { levelId, value } while dragging a wall's top edge in 3D
 
   // Utilities
   activeSystem: 'electrical',
@@ -70,6 +72,7 @@ export const useEditor = create((set) => ({
   toggle3dAllLevels: () => set((s) => ({ show3dAllLevels: !s.show3dAllLevels })),
   toggleDims3d: () => set((s) => ({ showDims3d: !s.showDims3d })),
   toggleCeilings3d: () => set((s) => ({ showCeilings3d: !s.showCeilings3d })),
+  toggleRoof3d: () => set((s) => ({ showRoof3d: !s.showRoof3d })),
 
   select: (selectedId) => set({ ...CLEAR, selectedId }),
   selectWall: (selectedWallId) => set({ ...CLEAR, selectedWallId }),
@@ -101,6 +104,8 @@ export const useEditor = create((set) => ({
   clearPlantPreview: () => set({ plantPreview: null }),
   setSystemPreview: (systemPreview) => set({ systemPreview }),
   clearSystemPreview: () => set({ systemPreview: null }),
+  setCeilingDrag: (ceilingDrag) => set({ ceilingDrag }),
+  clearCeilingDrag: () => set({ ceilingDrag: null }),
 
   // Utilities
   setActiveSystem: (activeSystem) => set({ activeSystem }),
