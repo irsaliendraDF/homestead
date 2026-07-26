@@ -1,7 +1,7 @@
-import { Grid2x2, Sprout, Sparkles } from 'lucide-react'
+import { Grid2x2, Sprout, Sparkles, Fish } from 'lucide-react'
 import { useProject } from '../store/useProject.js'
 import { useEditor } from '../store/useEditor.js'
-import { PLANT_CATALOG, GARDEN_PRESETS, REGION, GARDEN } from '../config.js'
+import { PLANT_CATALOG, GARDEN_PRESETS, GARDEN_SYSTEM_CATALOG, REGION, GARDEN } from '../config.js'
 import { checkGarden } from '../lib/companions.js'
 
 // Garden controls in the Site inspector: crop + Zone/Plant tools, presets, the
@@ -13,6 +13,7 @@ export default function GardenPanel() {
   const gardenTool = useEditor((s) => s.gardenTool)
   const activeCrop = useEditor((s) => s.activeCrop)
   const pendingPreset = useEditor((s) => s.pendingPreset)
+  const pendingSystem = useEditor((s) => s.pendingSystem)
 
   const conflicts = intel ? checkGarden(landscape.plants, landscape.zones) : []
   const bad = conflicts.filter((c) => c.verdict === 'bad')
@@ -60,6 +61,22 @@ export default function GardenPanel() {
             </button>
           ))}
           {pendingPreset && <p className="text-[11px] text-accent">Click on the site to drop the guild.</p>}
+        </div>
+      </Section>
+
+      <Section title="Systems">
+        <div className="flex flex-col gap-1.5">
+          {GARDEN_SYSTEM_CATALOG.map((sy) => (
+            <button
+              key={sy.kind}
+              type="button"
+              onClick={() => useEditor.getState().armSystem(pendingSystem && pendingSystem.kind === sy.kind ? null : { kind: sy.kind, label: sy.label, w: sy.w, d: sy.d })}
+              className={`flex items-center gap-1.5 rounded border px-2 py-1 text-left text-[11px] ${pendingSystem && pendingSystem.kind === sy.kind ? 'border-accent bg-accentSoft text-ink' : 'border-line text-ink hover:bg-accentSoft'}`}
+            >
+              <Fish size={13} strokeWidth={1.75} /> {sy.label}
+            </button>
+          ))}
+          {pendingSystem && <p className="text-[11px] text-accent">Click on the site to place it, then size it in the inspector.</p>}
         </div>
       </Section>
 

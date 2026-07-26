@@ -84,7 +84,7 @@ export default function App() {
         }
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         const s = useEditor.getState()
-        const anySel = s.selectedId || s.selectedWallId || s.selectedOpeningId || s.selectedFixtureId || s.selectedRunId || s.selectedLandscapeId || s.selectedZoneId || s.selectedPlantId
+        const anySel = s.selectedId || s.selectedWallId || s.selectedOpeningId || s.selectedFixtureId || s.selectedRunId || s.selectedLandscapeId || s.selectedZoneId || s.selectedPlantId || s.selectedSystemId
         if (anySel) {
           e.preventDefault()
           if (s.selectedId) useProject.getState().removeRoom(s.selectedId)
@@ -95,6 +95,7 @@ export default function App() {
           if (s.selectedLandscapeId) useProject.getState().removeLandscapeObject(s.selectedLandscapeId)
           if (s.selectedZoneId) useProject.getState().removeZone(s.selectedZoneId)
           if (s.selectedPlantId) useProject.getState().removePlant(s.selectedPlantId)
+          if (s.selectedSystemId) useProject.getState().removeGardenSystem(s.selectedSystemId)
           useEditor.getState().clearSelection()
         }
       }

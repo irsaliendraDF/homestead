@@ -10,6 +10,7 @@ const CLEAR = {
   selectedLandscapeId: null,
   selectedZoneId: null,
   selectedPlantId: null,
+  selectedSystemId: null,
 }
 
 // Transient editor state: active tool, selection, and live drag preview. None of
@@ -36,10 +37,13 @@ export const useEditor = create((set) => ({
   gardenTool: null, // null | 'zone' | 'plant'
   activeCrop: 'tomato', // crop for the next zone/plant
   pendingPreset: null, // GARDEN_PRESETS id armed for a one-click drop
+  pendingSystem: null, // { kind, label, w, d } armed for placement
   selectedZoneId: null,
   selectedPlantId: null,
+  selectedSystemId: null,
   zonePreview: null, // { id?, x, y, w, d } while drawing/editing a zone
   plantPreview: null, // { id, x, y } while moving a plant
+  systemPreview: null, // { id, x, y, w, d } while moving/resizing a system
 
   // Utilities
   activeSystem: 'electrical',
@@ -75,6 +79,7 @@ export const useEditor = create((set) => ({
   selectLandscape: (selectedLandscapeId) => set({ ...CLEAR, selectedLandscapeId }),
   selectZone: (selectedZoneId) => set({ ...CLEAR, selectedZoneId }),
   selectPlant: (selectedPlantId) => set({ ...CLEAR, selectedPlantId }),
+  selectSystem: (selectedSystemId) => set({ ...CLEAR, selectedSystemId }),
   clearSelection: () => set({ ...CLEAR }),
 
   // Site / landscape actions
@@ -85,14 +90,17 @@ export const useEditor = create((set) => ({
   clearLandscapePreview: () => set({ landscapePreview: null }),
 
   // Garden actions
-  setGardenTool: (gardenTool) => set({ ...CLEAR, gardenTool, pendingLandscape: null, pendingPreset: null }),
+  setGardenTool: (gardenTool) => set({ ...CLEAR, gardenTool, pendingLandscape: null, pendingPreset: null, pendingSystem: null }),
   setActiveCrop: (activeCrop) => set({ activeCrop }),
-  armPreset: (pendingPreset) => set({ ...CLEAR, pendingPreset, gardenTool: null, pendingLandscape: null }),
-  disarmGarden: () => set({ gardenTool: null, pendingPreset: null }),
+  armPreset: (pendingPreset) => set({ ...CLEAR, pendingPreset, gardenTool: null, pendingLandscape: null, pendingSystem: null }),
+  armSystem: (pendingSystem) => set({ ...CLEAR, pendingSystem, gardenTool: null, pendingPreset: null, pendingLandscape: null }),
+  disarmGarden: () => set({ gardenTool: null, pendingPreset: null, pendingSystem: null }),
   setZonePreview: (zonePreview) => set({ zonePreview }),
   clearZonePreview: () => set({ zonePreview: null }),
   setPlantPreview: (plantPreview) => set({ plantPreview }),
   clearPlantPreview: () => set({ plantPreview: null }),
+  setSystemPreview: (systemPreview) => set({ systemPreview }),
+  clearSystemPreview: () => set({ systemPreview: null }),
 
   // Utilities
   setActiveSystem: (activeSystem) => set({ activeSystem }),

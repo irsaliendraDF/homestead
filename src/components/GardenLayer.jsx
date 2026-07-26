@@ -2,11 +2,17 @@ import { useMemo } from 'react'
 import { useProject } from '../store/useProject.js'
 import { useEditor } from '../store/useEditor.js'
 import { checkGarden, zoneCapacity, zoneOverPlanting, plantSpacing, PLANT_BY_ID, cropColor } from '../lib/companions.js'
+import { objectFootprint } from '../lib/landscape.js'
 import { COLOR } from '../tokens.js'
 
 // Garden zones + plants on the site, with the OPTIONAL companion/spacing overlay
 // (off by default). The overlay's O(n²) check only runs when it's on.
 const GOOD = '#4C9A5A'
+const SYSTEM_STYLE = {
+  aquaponics: { color: '#4E8E9F', label: 'Aquaponics' },
+  drying: { color: '#B08A5E', label: 'Drying' },
+  curing: { color: '#8A7B9F', label: 'Curing' },
+}
 
 const HANDLES = [
   { id: 'nw', fx: 0, fy: 0, cursor: 'nwse-resize' },
@@ -27,9 +33,12 @@ export default function GardenLayer({ zoom }) {
   const zonePreview = useEditor((s) => s.zonePreview)
   const plantPreview = useEditor((s) => s.plantPreview)
   const activeCrop = useEditor((s) => s.activeCrop)
+  const selectedSystemId = useEditor((s) => s.selectedSystemId)
+  const systemPreview = useEditor((s) => s.systemPreview)
 
   const zones = landscape.zones.map((z) => (zonePreview && zonePreview.id === z.id ? { ...z, ...zonePreview } : z))
   const plants = landscape.plants.map((p) => (plantPreview && plantPreview.id === p.id ? { ...p, ...plantPreview } : p))
+  const systems = (landscape.systems || []).map((sy) => (systemPreview && systemPreview.id === sy.id ? { ...sy, ...systemPreview } : sy))
 
   const conflicts = useMemo(() => (intel ? checkGarden(plants, zones) : []), [intel, sig(plants), sig(zones)]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -50,6 +59,24 @@ export default function GardenLayer({ zoom }) {
             </text>
             {intel && <ZoneCapacity zone={z} plants={plants} fs={fs} />}
             {sel && <Handles rect={z} hs={8 / zoom} kind="zone" id={z.id} />}
+          </g>
+        )
+      })}
+
+      {/* Garden systems (aquaponics / drying / curing) */}
+      {systems.map((sy) => {
+        const st = SYSTEM_STYLE[sy.kind] || { color: COLOR.accent, label: sy.kind }
+        const sel = sy.id === selectedSystemId
+        const f = objectFootprint(sy)
+        return (
+          <g key={sy.id}>
+            <g transform={`translate(${sy.x} ${sy.y}) rotate(${sy.rotation || 0})`}>
+              <rect data-system-id={sy.id} x={-sy.w / 2} y={-sy.d / 2} width={sy.w} height={sy.d} fill={st.color + '2E'} stroke={sel ? COLOR.accent : st.color} strokeWidth={sel ? 2 : 1.5} vectorEffect="non-scaling-stroke" style={{ pointerEvents: 'all', cursor: 'move' }} />
+            </g>
+            <text x={sy.x} y={sy.y} textAnchor="middle" dominantBaseline="central" fontSize={fs(11)} fill={COLOR.muted} style={{ pointerEvents: 'none', fontFamily: 'DM Sans, sans-serif' }}>
+              {st.label}
+            </text>
+            {sel && <SystemHandles f={f} id={sy.id} hs={8 / zoom} />}
           </g>
         )
       })}
@@ -113,6 +140,21 @@ function Handles({ rect, hs, id }) {
           style={{ pointerEvents: 'all', cursor: h.cursor }}
         />
       ))}
+    </g>
+  )
+}
+
+function SystemHandles({ f, id, hs }) {
+  return (
+    <g>
+      <rect x={f.left} y={f.top} width={f.fw} height={f.fh} fill="none" stroke={COLOR.accent} strokeWidth={1.5} vectorEffect="non-scaling-stroke" style={{ pointerEvents: 'none' }} />
+      {HANDLES.map((h) => {
+        const px = f.left + h.fx * f.fw
+        const py = f.top + h.fy * f.fh
+        return (
+          <rect key={h.id} data-system-handle={h.id} data-system-id={id} x={px - hs / 2} y={py - hs / 2} width={hs} height={hs} fill={COLOR.panel} stroke={COLOR.accent} strokeWidth={1.5} vectorEffect="non-scaling-stroke" style={{ pointerEvents: 'all', cursor: h.cursor }} />
+        )
+      })}
     </g>
   )
 }

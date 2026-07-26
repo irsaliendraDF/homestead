@@ -109,8 +109,30 @@ export function usePlanInteractions(svgRef, spaceRef) {
       svgRef.current.setPointerCapture(e.pointerId)
       return
     }
+    if (ed.pendingSystem) {
+      const p = ed.pendingSystem
+      useProject.getState().addGardenSystem({ kind: p.kind, label: p.label, x: start.x, y: start.y, w: p.w, d: p.d })
+      useEditor.getState().selectSystem(useProject.getState()._lastSystemId)
+      return
+    }
 
     // Garden hit-tests (before objects, since plants/zones sit on top)
+    const sysHandle = e.target.getAttribute?.('data-system-handle')
+    const sysId = e.target.getAttribute?.('data-system-id')
+    if (sysHandle && sysId) {
+      const sy = project.landscape.systems.find((s) => s.id === sysId)
+      useEditor.getState().selectSystem(sysId)
+      it.current = { mode: 'sys-resize', id: sysId, handle: sysHandle, orig: { ...sy }, start }
+      svgRef.current.setPointerCapture(e.pointerId)
+      return
+    }
+    if (sysId) {
+      const sy = project.landscape.systems.find((s) => s.id === sysId)
+      useEditor.getState().selectSystem(sysId)
+      it.current = { mode: 'sys-move', id: sysId, orig: { ...sy }, start }
+      svgRef.current.setPointerCapture(e.pointerId)
+      return
+    }
     const plantId = e.target.getAttribute?.('data-plant-id')
     const zoneHandle = e.target.getAttribute?.('data-zone-handle')
     const zoneId = e.target.getAttribute?.('data-zone-id')
@@ -331,6 +353,39 @@ export function usePlanInteractions(svgRef, spaceRef) {
       return
     }
 
+    if (cur.mode === 'sys-move') {
+      const p = world(e)
+      const obj = { ...cur.orig, x: cur.orig.x + (p.x - cur.start.x), y: cur.orig.y + (p.y - cur.start.y) }
+      const project = useProject.getState().project
+      const f = objectFootprint(obj)
+      const cand = landscapeCandidates(project.landscape.objects, project.plot)
+      const thr = thresholdIn()
+      const sx = snapAxis([f.left, f.right], cand.xs, thr)
+      const sy = snapAxis([f.top, f.bottom], cand.ys, thr)
+      useEditor.getState().setSystemPreview({ id: cur.id, x: obj.x + sx.delta, y: obj.y + sy.delta, w: cur.orig.w, d: cur.orig.d, rotation: cur.orig.rotation })
+      return
+    }
+    if (cur.mode === 'sys-resize') {
+      const p = world(e)
+      const f = objectFootprint(cur.orig)
+      let { left, right, top, bottom } = f
+      const dx = p.x - cur.start.x
+      const dy = p.y - cur.start.y
+      const h = cur.handle
+      const MIN = 12
+      if (h.includes('w')) left = f.left + dx
+      if (h.includes('e')) right = f.right + dx
+      if (h.includes('n')) top = f.top + dy
+      if (h.includes('s')) bottom = f.bottom + dy
+      if (right - left < MIN) h.includes('w') ? (left = right - MIN) : (right = left + MIN)
+      if (bottom - top < MIN) h.includes('n') ? (top = bottom - MIN) : (bottom = top + MIN)
+      const fw = right - left
+      const fh = bottom - top
+      const swap = (cur.orig.rotation || 0) % 180 !== 0
+      useEditor.getState().setSystemPreview({ id: cur.id, x: (left + right) / 2, y: (top + bottom) / 2, w: swap ? fh : fw, d: swap ? fw : fh, rotation: cur.orig.rotation })
+      return
+    }
+
     if (cur.mode === 'zone-draw') {
       const r = normalize(cur.start, world(e))
       useEditor.getState().setZonePreview({ x: r.x, y: r.y, w: r.w, d: r.d })
@@ -530,6 +585,13 @@ export function usePlanInteractions(svgRef, spaceRef) {
       const pv = useEditor.getState().landscapePreview
       useEditor.getState().clearLandscapePreview()
       if (pv) useProject.getState().updateLandscapeObject(cur.id, { x: pv.x, y: pv.y, w: pv.w, d: pv.d })
+      return
+    }
+
+    if (cur.mode === 'sys-move' || cur.mode === 'sys-resize') {
+      const pv = useEditor.getState().systemPreview
+      useEditor.getState().clearSystemPreview()
+      if (pv) useProject.getState().updateGardenSystem(cur.id, { x: pv.x, y: pv.y, w: pv.w, d: pv.d })
       return
     }
 

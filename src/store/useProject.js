@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { temporal } from 'zundo'
 import { DEFAULTS, UNITS, GARDEN_PRESETS, PLANT_CATALOG } from '../config.js'
+import { systemDefaults } from '../lib/gardensystems.js'
 
 // State mutates ONLY through the actions below. Components never set fields
 // directly — that keeps undo/redo, autosave, and future validation honest.
@@ -347,6 +348,46 @@ export const useProject = create(
         set((s) => ({
           project: touch(s.project, {
             landscape: { ...s.project.landscape, plants: s.project.landscape.plants.filter((p) => p.id !== id) },
+          }),
+        })),
+
+      // ── Garden systems (aquaponics / drying / curing) ──
+      addGardenSystem: ({ kind, label, x, y, w, d }) =>
+        set((s) => {
+          const sys = {
+            id: uid(),
+            kind,
+            label,
+            x: Math.round(x),
+            y: Math.round(y),
+            w: Math.round(w),
+            d: Math.round(d),
+            rotation: 0,
+            config: systemDefaults(kind),
+          }
+          return {
+            project: touch(s.project, { landscape: { ...s.project.landscape, systems: [...s.project.landscape.systems, sys] } }),
+            _lastSystemId: sys.id,
+          }
+        }),
+
+      updateGardenSystem: (id, patch) =>
+        set((s) => {
+          const clean = {}
+          for (const [k, v] of Object.entries(patch)) clean[k] = ['x', 'y', 'w', 'd', 'rotation'].includes(k) ? Math.round(v) : v
+          if ('w' in clean) clean.w = Math.max(12, clean.w)
+          if ('d' in clean) clean.d = Math.max(12, clean.d)
+          return {
+            project: touch(s.project, {
+              landscape: { ...s.project.landscape, systems: s.project.landscape.systems.map((sy) => (sy.id === id ? { ...sy, ...clean } : sy)) },
+            }),
+          }
+        }),
+
+      removeGardenSystem: (id) =>
+        set((s) => ({
+          project: touch(s.project, {
+            landscape: { ...s.project.landscape, systems: s.project.landscape.systems.filter((sy) => sy.id !== id) },
           }),
         })),
 

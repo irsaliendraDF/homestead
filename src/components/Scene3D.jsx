@@ -100,6 +100,9 @@ export default function Scene3D() {
             </mesh>
           )
         })}
+        {(project.landscape?.systems || []).map((sy) => (
+          <GardenSystem3D key={sy.id} sy={sy} />
+        ))}
         {visible.map((level) => (
           <LevelMeshes
             key={level.id}
@@ -271,6 +274,40 @@ function FloorSlab({ bbox, y, color, opacity, transparent, thickness, below }) {
     <mesh position={[cx, cy, cz]} receiveShadow>
       <boxGeometry args={[w, thickness, d]} />
       <meshStandardMaterial color={color} roughness={1} metalness={0} transparent={transparent} opacity={opacity} />
+    </mesh>
+  )
+}
+
+// Garden systems: aquaponics = tank box + raised bed + faint water plane;
+// drying/curing = a simple translucent frame.
+function GardenSystem3D({ sy }) {
+  const rot = [0, (-(sy.rotation || 0) * Math.PI) / 180, 0]
+  if (sy.kind === 'aquaponics') {
+    const tankH = 24
+    const bedH = 12
+    return (
+      <group position={[sy.x, 0, sy.y]} rotation={rot}>
+        <mesh position={[0, tankH / 2, sy.d / 4]} castShadow receiveShadow>
+          <boxGeometry args={[sy.w, tankH, sy.d / 2]} />
+          <meshStandardMaterial color="#5B8494" roughness={1} />
+        </mesh>
+        <mesh position={[0, tankH - 1, sy.d / 4]}>
+          <boxGeometry args={[sy.w - 4, 1, sy.d / 2 - 4]} />
+          <meshStandardMaterial color="#8FB6C4" roughness={0.4} transparent opacity={0.7} />
+        </mesh>
+        <mesh position={[0, tankH + bedH / 2, -sy.d / 4]} castShadow receiveShadow>
+          <boxGeometry args={[sy.w, bedH, sy.d / 2]} />
+          <meshStandardMaterial color="#8A6F52" roughness={1} />
+        </mesh>
+      </group>
+    )
+  }
+  const h = Math.max(48, sy.rotation != null ? 72 : 72)
+  const color = sy.kind === 'curing' ? '#8A7B9F' : '#B08A5E'
+  return (
+    <mesh position={[sy.x, h / 2, sy.y]} rotation={rot} castShadow>
+      <boxGeometry args={[sy.w, h, sy.d]} />
+      <meshStandardMaterial color={color} roughness={1} transparent opacity={0.4} />
     </mesh>
   )
 }

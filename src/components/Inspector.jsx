@@ -14,6 +14,7 @@ import { roomAreaSqft, roomBounds, roomPolygon, overlappingRoomIds, sharedPairs 
 import { runLengthIn, effectiveRunPoints } from '../lib/runs.js'
 import { setbacks, distanceToHouse, houseBounds } from '../lib/landscape.js'
 import { zoneCapacity, zoneOverPlanting, PLANT_BY_ID } from '../lib/companions.js'
+import { computeSystem } from '../lib/gardensystems.js'
 import DimensionInput from './DimensionInput.jsx'
 import UtilitiesPanel from './UtilitiesPanel.jsx'
 import LandscapePanel from './LandscapePanel.jsx'
@@ -45,6 +46,15 @@ function SetbackRow({ label, value }) {
     <div className="flex items-center justify-between text-xs text-muted">
       <span>{label}</span>
       <span className="num text-ink">{formatFeetInches(value)}</span>
+    </div>
+  )
+}
+
+function Metric({ label, value }) {
+  return (
+    <div className="flex items-center justify-between text-xs text-muted">
+      <span>{label}</span>
+      <span className="num text-ink">{value}</span>
     </div>
   )
 }
@@ -88,9 +98,11 @@ export default function Inspector() {
   const selectedLandscapeId = useEditor((s) => s.selectedLandscapeId)
   const selectedZoneId = useEditor((s) => s.selectedZoneId)
   const selectedPlantId = useEditor((s) => s.selectedPlantId)
+  const selectedSystemId = useEditor((s) => s.selectedSystemId)
   const lobj = project.landscape.objects.find((o) => o.id === selectedLandscapeId)
   const zone = project.landscape.zones.find((z) => z.id === selectedZoneId)
   const plant = project.landscape.plants.find((p) => p.id === selectedPlantId)
+  const gsys = (project.landscape.systems || []).find((s) => s.id === selectedSystemId)
 
   // Rooms that share a wall with the selected room, and whether they're joined.
   const neighbors = room
@@ -106,6 +118,66 @@ export default function Inspector() {
 
   // Landscape (Site) mode takes over the inspector.
   if (canvasMode === 'landscape') {
+    if (gsys) {
+      const c = computeSystem(gsys)
+      const setCfg = (patch) => useProject.getState().updateGardenSystem(gsys.id, { config: { ...gsys.config, ...patch } })
+      return (
+        <div className="flex h-full flex-col overflow-y-auto">
+          <Section title={gsys.label}>
+            <div className="grid grid-cols-2 gap-2">
+              <DimensionInput label="Width" valueIn={gsys.w} min={12} onCommit={(v) => useProject.getState().updateGardenSystem(gsys.id, { w: v })} />
+              <DimensionInput label="Depth" valueIn={gsys.d} min={12} onCommit={(v) => useProject.getState().updateGardenSystem(gsys.id, { d: v })} />
+            </div>
+
+            {gsys.kind === 'aquaponics' && (
+              <>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs text-muted">Bed : tank ratio</span>
+                    <input type="number" step="0.1" min="0.5" value={c.ratio} onChange={(e) => setCfg({ growbedToTankRatio: Number(e.target.value) || 1 })} className="num w-full rounded border border-line bg-canvas px-2 py-1 text-sm text-ink" />
+                  </label>
+                  <DimensionInput label="Bed depth" valueIn={c.depthIn} min={4} onCommit={(v) => setCfg({ growbedDepthIn: v })} />
+                </div>
+                <Metric label="Fish-tank volume" value={`${c.tankVolumeGal} gal`} />
+                <Metric label="Grow-bed volume" value={`${c.growBedVolumeGal} gal`} />
+                <Metric label="Max fish load" value={`~${c.fishLoadLb} lb`} />
+                <Metric label="Grow-bed area" value={`${c.growBedAreaSqFt} sq ft`} />
+                <Metric label="Leafy greens" value={`~${c.herbCapacity} plants`} />
+                <Metric label="Optional sump" value={`~${c.sumpGal} gal`} />
+                <p className="rounded bg-accentSoft px-2 py-1.5 text-[11px] leading-tight text-ink">
+                  Cold climate: outdoors this is seasonal. Year-round in Nova Scotia means a greenhouse or heated indoor/basement spot plus a tank heater. Siting it inside changes the plan.
+                </p>
+              </>
+            )}
+
+            {(gsys.kind === 'drying' || gsys.kind === 'curing') && (
+              <>
+                <Metric label="Capacity" value={c.capacityLabel} />
+                <Metric label="Target" value={c.target} />
+              </>
+            )}
+          </Section>
+
+          <Section title="Parts list">
+            {c.parts.map((p, i) => (
+              <div key={i} className="flex items-center justify-between text-xs">
+                <span className="text-ink">{p.item}</span>
+                {p.qty > 1 && <span className="num text-muted">×{p.qty}</span>}
+              </div>
+            ))}
+          </Section>
+
+          <Section title="">
+            <p className="rounded border border-alert/40 bg-alert/10 px-2 py-1.5 text-[11px] font-medium leading-tight text-alert">
+              Planning estimate — validate before building. Real aquaponics/aquaculture design needs local checks (species, water testing, code).
+            </p>
+            <button type="button" onClick={() => { useProject.getState().removeGardenSystem(gsys.id); useEditor.getState().clearSelection() }} className="flex items-center justify-center gap-1.5 rounded border border-line px-2 py-1.5 text-xs text-alert hover:bg-alert/10">
+              <Trash2 size={14} strokeWidth={1.75} /> Delete system
+            </button>
+          </Section>
+        </div>
+      )
+    }
     if (zone) {
       const cap = zoneCapacity(zone)
       const { count, over } = zoneOverPlanting(zone, project.landscape.plants)

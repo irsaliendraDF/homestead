@@ -319,3 +319,30 @@ Sisters places corn/bean/squash with no foes ✓.
 **Scope guard:** baked-in catalog only — no live AI (that's 6.3), no growth/yield/season sim.
 
 **Not merged to `main`** — pending Irene's look on the phase-6-1 preview.
+
+Phase 6.1 confirmed by Irene ("keep going, tweak garden later"); merged to `main`.
+
+## Phase 6.2 — garden systems — 2026-07-25 — branch `phase-6-2`
+
+**Delivered** (Site mode, garden panel "Systems")
+- Place aquaponics / drying / curing from `GARDEN_SYSTEM_CATALOG` (center-anchored, 90° rotate,
+  8-handle resize). Stored in `project.landscape.systems` with kind-specific `config`.
+- `src/lib/gardensystems.js` (pure): all sizing COMPUTED from footprint + config, never stored.
+  - **Aquaponics**: fish-tank volume, grow-bed volume, max fish load (lb), grow-bed area, leafy-
+    green capacity, optional sump — adjustable bed:tank ratio + bed depth; ratio holds as the
+    footprint changes. Cold-climate note (NS = seasonal / greenhouse / tank heater).
+  - **Drying/curing**: hang-spots / jar capacity + environmental target string.
+  - Parts list per system, quantities scaled to size.
+- Inspector sizing panel with a prominent, unmissable **"Planning estimate — validate before
+  building"** disclaimer on every system.
+- 3D: aquaponics = tank box + raised bed + faint water plane; drying/curing = translucent frame.
+- `verify-phase6-2.mjs`: internal consistency (ratio holds), footprint scaling, ratio→tank,
+  drying/curing capacity + parts, dispatch. All PASS. Build clean.
+
+**Acceptance:** resize aquaponics → fish load / bed volume / plant capacity update live and stay
+consistent ✓; each system yields a scaled parts list ✓; disclaimer present on every panel ✓.
+
+**Scope guard:** steady-state heuristics only — no water chemistry, nitrogen cycle, species DB,
+or cost totals. 6.3 (Claude assist) is next and CUTTABLE (needs an Anthropic key).
+
+**Not merged to `main`** — pending Irene's look on the phase-6-2 preview.
