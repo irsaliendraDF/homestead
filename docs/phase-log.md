@@ -430,3 +430,36 @@ Irene's batch. All delivered:
   ~299 kB (three.js still its own chunk, jsPDF its own).
 
 **Not merged to `main`** — pending Irene's look on the preview.
+
+Furnishings confirmed / used by Irene; merged to `main`.
+
+## Electrical code-awareness + structural stairs — 2026-07-26 — branch `phase-electrical`
+
+Two Irene asks. Both flagged as PLANNING REFERENCES (not certification) — deviates from Phase 5
+"schematic only, no code checking", at her direction.
+
+**Structural stairs (connect the floors)**
+- Interior stairs now climb the **full floor-to-floor rise** in 3D (ceiling + FLOOR_ASSEMBLY),
+  with side stringers, so a flight visibly connects a level to the one above.
+- The floor above gets a **stairwell opening** — `subtractHoles()` cuts the stair footprint out
+  of the upper floor slab (guillotine split), so the stairs pass through.
+- 2D: stairs show an **UP** arrow; the level above shows a dashed **stairwell ▽** marker at the
+  stairs-below footprint.
+
+**Electrical (CEC/NBC planning references)**
+- New Electrical fixtures: **switch, 3-way switch, GFCI outlet, range plug (40 A/240 V), dryer
+  plug, smoke alarm (interconnected), CO alarm, sub-panel**. EV charger relabeled 40 A/240 V.
+- `config.ELECTRICAL`: `RECEPTACLES_PER_CIRCUIT` (default 8, notes CEC-12), dedicated-circuit
+  table.
+- **Circuit #** field on electrical fixtures (inspector).
+- `src/lib/electrical.js` → `electricalChecks(project)`, shown in the Utilities panel (Electrical
+  system) as a **"Code checks · planning references"** section: receptacles-per-circuit limit,
+  smoke alarm per bedroom + per storey (+ interconnect), hallway switch (+ 3-way reminder),
+  electric range → 40 A plug, fuel appliance → CO alarm. Every message framed as a reference.
+- Corrected the "8 vs CEC-12" nuance honestly (US convention vs CEC).
+- Full **utility research** written to `docs/utility-code-reference.md` (electrical, smoke/CO,
+  water, DWV, HVAC with **heat-pump-first** for NS, propane) — all planning references.
+- `verify-electrical.mjs`: fixtures present, over-limit warning, smoke/hall coverage clears when
+  fixtures added, range→plug. All PASS. Build clean.
+
+**Not merged to `main`** — pending Irene's look on the preview.

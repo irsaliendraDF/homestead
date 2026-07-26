@@ -3,12 +3,14 @@ import { useProject } from '../store/useProject.js'
 import { useEditor } from '../store/useEditor.js'
 import { SYSTEMS, FIXTURE_CATALOG } from '../config.js'
 import { systemRunTotalsFt } from '../lib/runs.js'
+import { electricalChecks } from '../lib/electrical.js'
 import { formatFeetInches } from '../lib/units.js'
 
 // Shown in the inspector while the Utilities tool is active: system layers,
 // the fixture palette for the active system, the run tool, and run totals.
 export default function UtilitiesPanel() {
-  const level = useProject((s) => s.project.levels.find((l) => l.id === s.project.view.activeLevelId))
+  const project = useProject((s) => s.project)
+  const level = project.levels.find((l) => l.id === project.view.activeLevelId)
   const activeSystem = useEditor((s) => s.activeSystem)
   const hidden = useEditor((s) => s.systemsHidden)
   const pendingFixture = useEditor((s) => s.pendingFixture)
@@ -59,6 +61,8 @@ export default function UtilitiesPanel() {
         {pendingFixture && <p className="mt-1.5 text-[11px] text-accent">Click on the plan to place. Press R to rotate. Esc to stop.</p>}
       </Section>
 
+      {activeSystem === 'electrical' && <CodeChecks project={project} />}
+
       <Section title="Runs">
         <button
           type="button"
@@ -74,6 +78,27 @@ export default function UtilitiesPanel() {
         )}
       </Section>
     </div>
+  )
+}
+
+function CodeChecks({ project }) {
+  const checks = electricalChecks(project)
+  return (
+    <Section title="Code checks · planning references">
+      {checks.length === 0 ? (
+        <p className="text-[11px] text-muted">Nothing flagged. These are planning references — confirm with the CEC/NBC and a licensed electrician.</p>
+      ) : (
+        <div className="flex flex-col gap-1">
+          {checks.map((c, i) => (
+            <p key={i} className={`text-[11px] leading-tight ${c.severity === 'warn' ? 'text-alert' : 'text-muted'}`}>
+              {c.severity === 'warn' ? '⚠ ' : 'ℹ '}
+              {c.message}
+            </p>
+          ))}
+          <p className="pt-1 text-[10px] leading-tight text-muted">Planning references only — not code certification.</p>
+        </div>
+      )}
+    </Section>
   )
 }
 

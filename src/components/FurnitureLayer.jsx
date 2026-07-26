@@ -18,15 +18,28 @@ const HANDLES = [
 ]
 
 export default function FurnitureLayer({ zoom }) {
-  const level = useProject((s) => s.project.levels.find((l) => l.id === s.project.view.activeLevelId))
+  const levels = useProject((s) => s.project.levels)
+  const activeId = useProject((s) => s.project.view.activeLevelId)
   const selectedId = useEditor((s) => s.selectedFurnitureId)
   const preview = useEditor((s) => s.furniturePreview)
 
+  const level = levels.find((l) => l.id === activeId)
+  const below = levels.find((l) => l.index === level.index - 1)
   const items = (level.furniture || []).map((f) => (preview && preview.id === f.id ? { ...f, ...preview } : f))
+  const downStairs = (below?.furniture || []).filter((f) => f.kind === 'stairs')
   const hs = 8 / zoom
 
   return (
     <g>
+      {/* Stairwell coming UP from the level below (open in this floor). */}
+      {downStairs.map((f) => (
+        <g key={`dn${f.id}`} transform={`translate(${f.x} ${f.y}) rotate(${f.rotation || 0})`} style={{ pointerEvents: 'none' }}>
+          <rect x={-f.w / 2} y={-f.d / 2} width={f.w} height={f.d} fill="none" stroke={COLOR.muted} strokeWidth={1} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />
+          <text x={0} y={0} textAnchor="middle" dominantBaseline="central" fontSize={11 / zoom} fill={COLOR.muted} style={{ fontFamily: 'DM Sans, sans-serif' }}>
+            stairwell ▽
+          </text>
+        </g>
+      ))}
       {items.map((f) => {
         const st = furnitureStyle(f.kind)
         const sel = f.id === selectedId
@@ -58,6 +71,14 @@ function Glyph({ kind, w, d, stroke }) {
       const y = -d / 2 + (i * d) / treads
       lines.push(<line key={i} x1={-w / 2} y1={y} x2={w / 2} y2={y} {...s} />)
     }
+    // Direction-of-travel arrow + UP label (ascends toward -y in local coords).
+    lines.push(<line key="run" x1={0} y1={d / 2 - 4} x2={0} y2={-d / 2 + 4} {...s} />)
+    lines.push(<path key="head" d={`M ${-4} ${-d / 2 + 10} L 0 ${-d / 2 + 4} L 4 ${-d / 2 + 10}`} {...s} />)
+    lines.push(
+      <text key="up" x={6} y={-d / 2 + 12} fontSize={10} fill={s.stroke} style={{ pointerEvents: 'none', fontFamily: 'DM Sans, sans-serif' }}>
+        UP
+      </text>
+    )
     return <g>{lines}</g>
   }
   return null

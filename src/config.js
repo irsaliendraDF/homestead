@@ -37,6 +37,28 @@ export const ROOM_TYPES = [
   'Hall', 'Closet', 'Laundry', 'Utility', 'Garage', 'Entry', 'Storage',
 ]
 
+// Electrical PLANNING references (confirm with the Canadian Electrical Code, CEC
+// C22.1, the NBC, and a licensed electrician — this tool orients, never certifies).
+export const ELECTRICAL = {
+  // Max general receptacles per circuit before we flag it. Default is the
+  // conservative US convention (8 @ 180 VA on 15 A). NOTE: CEC Rule 8-304 permits
+  // up to 12 outlets on a 15 A residential circuit. Adjust to taste.
+  RECEPTACLES_PER_CIRCUIT: 8,
+  RECEPTACLE_KINDS: ['outlet', 'gfci_outlet'],
+  // Common dedicated circuits (appliance → amps / volts) — references only.
+  DEDICATED: [
+    { for: 'Range / stove', amps: 40, volts: 240 },
+    { for: 'Dryer', amps: 30, volts: 240 },
+    { for: 'Water heater (tank)', amps: 30, volts: 240 },
+    { for: 'EV charger', amps: 40, volts: 240 },
+    { for: 'Dishwasher', amps: 15, volts: 120 },
+    { for: 'Microwave', amps: 20, volts: 120 },
+    { for: 'Furnace / heat pump air handler', amps: 15, volts: 120 },
+  ],
+  // Smoke alarms: interconnected, in every bedroom + on every storey (NBC 9.10.19).
+  // CO alarms near sleeping areas where there's a fuel-burning appliance / attached garage.
+}
+
 export const SYSTEMS = {
   electrical: { label: 'Electrical', color: '#C9A227' },
   water: { label: 'Water supply', color: '#4E7FA8' },
@@ -50,7 +72,15 @@ export const FIXTURE_CATALOG = [
   { system: 'electrical', kind: 'panel', label: 'Service panel', w: 24, d: 6 },
   { system: 'electrical', kind: 'outlet', label: 'Outlet', w: 4, d: 2 },
   { system: 'electrical', kind: 'light', label: 'Light', w: 8, d: 8 },
-  { system: 'electrical', kind: 'ev_charger', label: 'EV charger', w: 12, d: 8 },
+  { system: 'electrical', kind: 'ev_charger', label: 'EV charger (40A/240V)', w: 12, d: 8 },
+  { system: 'electrical', kind: 'switch', label: 'Switch', w: 4, d: 2 },
+  { system: 'electrical', kind: 'switch_3way', label: '3-way switch', w: 4, d: 2 },
+  { system: 'electrical', kind: 'gfci_outlet', label: 'GFCI outlet', w: 4, d: 2 },
+  { system: 'electrical', kind: 'range_receptacle', label: 'Range plug (40A/240V)', w: 6, d: 3 },
+  { system: 'electrical', kind: 'dryer_receptacle', label: 'Dryer plug (30A/240V)', w: 6, d: 3 },
+  { system: 'electrical', kind: 'smoke_detector', label: 'Smoke alarm (interconnected)', w: 6, d: 6 },
+  { system: 'electrical', kind: 'co_detector', label: 'CO alarm', w: 6, d: 6 },
+  { system: 'electrical', kind: 'subpanel', label: 'Sub-panel', w: 16, d: 5 },
   { system: 'water', kind: 'main_shutoff', label: 'Main shutoff', w: 6, d: 6 },
   { system: 'water', kind: 'water_heater', label: 'Water heater', w: 24, d: 24 },
   { system: 'water', kind: 'well', label: 'Well head', w: 24, d: 24 },

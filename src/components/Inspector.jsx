@@ -307,6 +307,19 @@ export default function Inspector() {
             {fixture.label}
           </div>
           <div className="text-xs text-muted">{SYSTEMS[fixture.system].label}</div>
+          {fixture.system === 'electrical' && (
+            <label className="flex items-center justify-between gap-2 text-xs">
+              <span className="text-muted">Circuit #</span>
+              <input
+                type="number"
+                min="1"
+                value={fixture.circuit ?? ''}
+                placeholder="—"
+                onChange={(e) => useProject.getState().updateFixture(fixture.id, { circuit: e.target.value === '' ? null : Number(e.target.value) })}
+                className="num w-16 rounded border border-line bg-canvas px-2 py-1 text-right text-sm text-ink"
+              />
+            </label>
+          )}
           <button
             type="button"
             onClick={() => useProject.getState().updateFixture(fixture.id, { rotation: ((fixture.rotation || 0) + 90) % 360 })}

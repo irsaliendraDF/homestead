@@ -7,11 +7,11 @@ import { useEditor } from '../store/useEditor.js'
 import { resolveWalls, roomBounds } from '../lib/geometry.js'
 import { openingWorldSegment, wallSpans } from '../lib/openings.js'
 import { effectiveRunPoints, fixtureFootprint } from '../lib/runs.js'
-import { LANDSCAPE_STYLE, houseBounds } from '../lib/landscape.js'
+import { LANDSCAPE_STYLE, houseBounds, objectFootprint } from '../lib/landscape.js'
 import { furnitureStyle, stairTreads } from '../lib/furniture.js'
 import { roofGeometry } from '../lib/roof.js'
 import { cropColor, plantSpacing } from '../lib/companions.js'
-import { SYSTEMS } from '../config.js'
+import { SYSTEMS, DEFAULTS } from '../config.js'
 import { formatFeetInches } from '../lib/units.js'
 
 // The plan, standing up. A pure projection of the same store the 2D editor
@@ -43,6 +43,17 @@ export default function Scene3D() {
   const visible = showAll ? levels : levels.filter((l) => l.id === view.activeLevelId)
   const activeId = view.activeLevelId
   const elevationOf = (id) => levels.find((l) => l.id === id)?.floorElevationIn ?? 0
+  // Stairwell openings in a level's floor come from stairs on the level below.
+  const floorHolesFor = (level) => {
+    const below = levels.find((l) => l.index === level.index - 1)
+    if (!below) return []
+    return (below.furniture || [])
+      .filter((f) => f.kind === 'stairs')
+      .map((f) => {
+        const ft = objectFootprint(f)
+        return { x: ft.left, y: ft.top, w: ft.fw, d: ft.fh }
+      })
+  }
   // Live ceiling height (honors an in-progress 3D drag).
   const ceilingOf = (l) => (ceilingDrag && ceilingDrag.levelId === l.id ? ceilingDrag.value : l.ceilingHeightIn)
 
@@ -155,6 +166,7 @@ export default function Scene3D() {
             showDims={showDims && level.id === activeId}
             hidden={hidden}
             elevationOf={elevationOf}
+            floorHoles={floorHolesFor(level)}
           />
         ))}
 
@@ -174,7 +186,7 @@ export default function Scene3D() {
   )
 }
 
-function LevelMeshes({ level, height, beginCeilingDrag, dragging, dimmed, showCeiling, showDims, hidden = [], elevationOf }) {
+function LevelMeshes({ level, height, beginCeilingDrag, dragging, dimmed, showCeiling, showDims, hidden = [], elevationOf, floorHoles = [] }) {
   const floorY = level.floorElevationIn
   const runY = floorY - 6 // schematic runs sit in the floor-assembly gap
   const onWallDown = (e) => {
@@ -219,9 +231,13 @@ function LevelMeshes({ level, height, beginCeilingDrag, dragging, dimmed, showCe
         <WallWithOpenings key={w.id} w={w} floorY={floorY} height={height} openingSegs={openingSegs} opacity={opacity} transparent={transparent} onWallDown={onWallDown} />
       ))}
 
-      {bbox && (
-        <FloorSlab bbox={bbox} y={floorY} color={MAT.floor} opacity={opacity} transparent={transparent} thickness={2} below />
-      )}
+      {bbox &&
+        subtractHoles({ x: bbox.minX, y: bbox.minY, w: bbox.maxX - bbox.minX, d: bbox.maxY - bbox.minY }, floorHoles).map((r, i) => (
+          <mesh key={`fl${i}`} position={[r.x + r.w / 2, floorY - 1, r.y + r.d / 2]} receiveShadow>
+            <boxGeometry args={[r.w, 2, r.d]} />
+            <meshStandardMaterial color={MAT.floor} roughness={1} transparent={transparent} opacity={opacity} />
+          </mesh>
+        ))}
       {bbox && showCeiling && (
         <FloorSlab bbox={bbox} y={floorY + height} color={MAT.ceiling} opacity={opacity} transparent={transparent} thickness={2} />
       )}
@@ -254,7 +270,7 @@ function LevelMeshes({ level, height, beginCeilingDrag, dragging, dimmed, showCe
 
       {/* Furniture (appliances / cupboards / bath / stairs) */}
       {(level.furniture || []).map((f) => (
-        <Furniture3D key={f.id} f={f} floorY={floorY} />
+        <Furniture3D key={f.id} f={f} floorY={floorY} floorToFloor={height + DEFAULTS.FLOOR_ASSEMBLY_IN} />
       ))}
 
       {/* Utility runs (in the floor gap) + risers */}
@@ -367,6 +383,31 @@ function RoofMesh({ style, bbox, pitch, eaveY }) {
   )
 }
 
+// Subtract axis-aligned holes from a rect → a set of rects (guillotine split).
+// Used to open a stairwell in the floor above a flight of stairs.
+function subtractHoles(rect, holes) {
+  let rects = [rect]
+  for (const h of holes) {
+    const next = []
+    for (const r of rects) {
+      const ix0 = Math.max(r.x, h.x)
+      const iy0 = Math.max(r.y, h.y)
+      const ix1 = Math.min(r.x + r.w, h.x + h.w)
+      const iy1 = Math.min(r.y + r.d, h.y + h.d)
+      if (ix0 >= ix1 || iy0 >= iy1) {
+        next.push(r) // no overlap
+        continue
+      }
+      if (iy0 > r.y) next.push({ x: r.x, y: r.y, w: r.w, d: iy0 - r.y }) // top band
+      if (iy1 < r.y + r.d) next.push({ x: r.x, y: iy1, w: r.w, d: r.y + r.d - iy1 }) // bottom band
+      if (ix0 > r.x) next.push({ x: r.x, y: iy0, w: ix0 - r.x, d: iy1 - iy0 }) // left band
+      if (ix1 < r.x + r.w) next.push({ x: ix1, y: iy0, w: r.x + r.w - ix1, d: iy1 - iy0 }) // right band
+    }
+    rects = next
+  }
+  return rects
+}
+
 function FloorSlab({ bbox, y, color, opacity, transparent, thickness, below }) {
   const w = bbox.maxX - bbox.minX
   const d = bbox.maxY - bbox.minY
@@ -383,14 +424,17 @@ function FloorSlab({ bbox, y, color, opacity, transparent, thickness, below }) {
 
 // Furniture massing, with a few recognizable shapes. Local coords inside a
 // rotated group at the item's centre on the floor.
-function Furniture3D({ f, floorY }) {
+function Furniture3D({ f, floorY, floorToFloor }) {
   const st = furnitureStyle(f.kind)
   const h = Math.max(4, f.heightIn)
   const rot = [0, (-(f.rotation || 0) * Math.PI) / 180, 0]
   const mat = <meshStandardMaterial color={st.fill} roughness={0.9} metalness={0} />
 
   if (f.kind === 'stairs') {
-    const treads = stairTreads(f.d, h)
+    // Structural: climb the full floor-to-floor rise so the flight visibly
+    // connects this level to the one above.
+    const rise = floorToFloor || h
+    const treads = stairTreads(f.d, rise)
     return (
       <group position={[f.x, floorY, f.y]} rotation={rot}>
         {treads.map((t, i) => (
@@ -399,6 +443,15 @@ function Furniture3D({ f, floorY }) {
             {mat}
           </mesh>
         ))}
+        {/* a stringer wall so it reads as structure, not a block */}
+        <mesh position={[f.w / 2 - 1, rise / 2, 0]}>
+          <boxGeometry args={[2, rise, f.d]} />
+          <meshStandardMaterial color={st.stroke} roughness={1} />
+        </mesh>
+        <mesh position={[-f.w / 2 + 1, rise / 2, 0]}>
+          <boxGeometry args={[2, rise, f.d]} />
+          <meshStandardMaterial color={st.stroke} roughness={1} />
+        </mesh>
       </group>
     )
   }
