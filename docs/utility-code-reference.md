@@ -103,6 +103,20 @@ better long-term call, exactly as you said.
 
 ---
 
+## Stairs (NBC 9.8 — private/interior, adopted in NS)
+
+Planning references — confirm the edition/amendments with your AHJ.
+- **Riser:** max **200 mm (7-7/8")**, min 125 mm (4-15/16"). Uniform (≤ 5 mm between adjacent).
+- **Run / going:** min **255 mm (10")**; tread depth min 255 mm.
+- **Headroom:** min **1950 mm (6'-5")**.
+- **Width:** min **860 mm (34")**.
+- **Handrail** on stairs with more than ~3 risers, 865–1070 mm high; **guards** at drops.
+- Comfort check: **2 × riser + run ≈ 610–635 mm (24–25")**.
+
+Homestead sizes the number of risers so the riser stays ≤ 7-7/8", reports the resulting rise/run,
+flags rise/run/width against the above, and offers **"Size to code"** (sets the run depth to a
+comfortable going). It does not size structure or handrails.
+
 ## What Homestead checks today (planning-level)
 
 In the Utilities panel (Electrical system) Homestead flags, as references only:

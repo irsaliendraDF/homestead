@@ -476,3 +476,15 @@ Stairs + electrical confirmed by Irene ("yes"); merged to `main`.
 - Acceptance: can't walk through a wall; can through a doorway; exit restores orbit. ✓
 
 **Not merged to `main`** — pending Irene's look on the phase-9 preview.
+
+### Follow-ups on phase-9 — NBC stairs + closets (Irene, 2026-07-26)
+
+- **Stairs to NBC (Nova Scotia)**: `furniture.js` `STAIR_CODE` + `stairSpec(rise, run, width)` —
+  risers picked so riser ≤ 7-7/8" (200 mm), reports rise/run, flags rise/run/width vs NBC 9.8,
+  `codeRunDepth` + a **"Size to code"** button in the stair inspector. `stairTreads` (2D+3D) now
+  uses the code riser height. Stairs section added to `docs/utility-code-reference.md`.
+- **Closets** (Irene: "not the room feature, walls too thick"): new furniture **storage**
+  category — closet (reach-in), walk-in closet, linen closet, wardrobe. Thin-outlined rect + rod
+  + label in 2D; a thin-walled open-front enclosure + shelf in 3D. `isCloset()` helper.
+- `verify-furnishings.mjs` updated: stair code (rise ≤ max, short run flagged, size-to-code
+  fixes it) + closet catalog. All PASS. Build clean.

@@ -8,7 +8,7 @@ import { resolveWalls, roomBounds } from '../lib/geometry.js'
 import { openingWorldSegment, wallSpans } from '../lib/openings.js'
 import { effectiveRunPoints, fixtureFootprint } from '../lib/runs.js'
 import { LANDSCAPE_STYLE, houseBounds, objectFootprint } from '../lib/landscape.js'
-import { furnitureStyle, stairTreads } from '../lib/furniture.js'
+import { furnitureStyle, stairTreads, isCloset } from '../lib/furniture.js'
 import { roofGeometry } from '../lib/roof.js'
 import { cropColor, plantSpacing } from '../lib/companions.js'
 import { collisionSegments, resolveMove } from '../lib/walk.js'
@@ -544,6 +544,31 @@ function Furniture3D({ f, floorY, floorToFloor }) {
         <mesh position={[-f.w / 2 + 1, rise / 2, 0]}>
           <boxGeometry args={[2, rise, f.d]} />
           <meshStandardMaterial color={st.stroke} roughness={1} />
+        </mesh>
+      </group>
+    )
+  }
+
+  if (isCloset(f.kind)) {
+    // Thin-walled enclosure (back + two sides, open front) + a shelf.
+    const t = 2
+    return (
+      <group position={[f.x, floorY, f.y]} rotation={rot}>
+        <mesh position={[0, h / 2, -f.d / 2 + t / 2]} castShadow receiveShadow>
+          <boxGeometry args={[f.w, h, t]} />
+          {mat}
+        </mesh>
+        <mesh position={[-f.w / 2 + t / 2, h / 2, 0]} castShadow receiveShadow>
+          <boxGeometry args={[t, h, f.d]} />
+          {mat}
+        </mesh>
+        <mesh position={[f.w / 2 - t / 2, h / 2, 0]} castShadow receiveShadow>
+          <boxGeometry args={[t, h, f.d]} />
+          {mat}
+        </mesh>
+        <mesh position={[0, h - 14, 0]}>
+          <boxGeometry args={[f.w - 2 * t, 1, f.d - t]} />
+          {mat}
         </mesh>
       </group>
     )

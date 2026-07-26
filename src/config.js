@@ -141,6 +141,11 @@ export const FURNITURE_CATALOG = [
   { kind: 'toilet', label: 'Toilet', category: 'bath', w: 20, d: 28, h: 30 },
   // Stairs (interior)
   { kind: 'stairs', label: 'Stairs', category: 'stairs', w: 40, d: 10 * 12, h: 108 },
+  // Closets & storage — thin-walled enclosures, NOT full rooms
+  { kind: 'closet', label: 'Closet (reach-in)', category: 'storage', w: 60, d: 24, h: 84 },
+  { kind: 'walkin_closet', label: 'Walk-in closet', category: 'storage', w: 60, d: 60, h: 84 },
+  { kind: 'linen_closet', label: 'Linen closet', category: 'storage', w: 24, d: 24, h: 84 },
+  { kind: 'wardrobe', label: 'Wardrobe', category: 'storage', w: 48, d: 24, h: 72 },
 ]
 
 // ── Garden ────────────────────────────────────────────────

@@ -11,7 +11,8 @@ import {
   importProject,
 } from '../store/session.js'
 import { downloadProject, readProjectFile } from '../export/index.js'
-import { REGION, UNITS, ROOM_TYPES, SYSTEMS, GARDEN, PLANT_CATALOG } from '../config.js'
+import { REGION, UNITS, ROOM_TYPES, SYSTEMS, GARDEN, PLANT_CATALOG, DEFAULTS } from '../config.js'
+import { stairSpec, codeRunDepth, STAIR_CODE } from '../lib/furniture.js'
 import { formatFeetInches } from '../lib/units.js'
 import { roomAreaSqft, roomBounds, roomPolygon, overlappingRoomIds, sharedPairs } from '../lib/geometry.js'
 import { runLengthIn, effectiveRunPoints } from '../lib/runs.js'
@@ -63,6 +64,15 @@ function Metric({ label, value }) {
   )
 }
 
+function CodeLine({ ok, text }) {
+  return (
+    <p className={`text-[11px] leading-tight ${ok ? 'text-muted' : 'text-alert'}`}>
+      {ok ? '✓ ' : '✗ '}
+      {text}
+    </p>
+  )
+}
+
 function PlantTags({ crop }) {
   return (
     <div className="flex flex-wrap gap-1.5 text-[11px]">
@@ -101,6 +111,8 @@ export default function Inspector() {
   const run = active ? (active.runs || []).find((r) => r.id === selectedRunId) : null
   const selectedFurnitureId = useEditor((s) => s.selectedFurnitureId)
   const furn = active ? (active.furniture || []).find((f) => f.id === selectedFurnitureId) : null
+  const stairFtf = furn && furn.kind === 'stairs' && active ? active.ceilingHeightIn + DEFAULTS.FLOOR_ASSEMBLY_IN : null
+  const stair = stairFtf ? stairSpec(stairFtf, furn.d, furn.w) : null
   const otherLevels = project.levels.filter((l) => l.id !== project.view.activeLevelId)
   const canvasMode = useEditor((s) => s.canvasMode)
   const selectedLandscapeId = useEditor((s) => s.selectedLandscapeId)
@@ -287,6 +299,27 @@ export default function Inspector() {
             <DimensionInput label="Depth" valueIn={furn.d} min={4} onCommit={(v) => useProject.getState().updateFurniture(furn.id, { d: v })} />
           </div>
           <DimensionInput label="Height" valueIn={furn.heightIn} min={2} onCommit={(v) => useProject.getState().updateFurniture(furn.id, { heightIn: v })} />
+          {stair && (
+            <div className="flex flex-col gap-1 rounded border border-line bg-canvas p-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">Stairs · NBC (Nova Scotia)</div>
+              <Metric label="Floor to floor" value={formatFeetInches(stairFtf)} />
+              <Metric label="Risers" value={`${stair.risers} @ ${stair.rise.toFixed(2)}″`} />
+              <Metric label="Run (going)" value={`${stair.run.toFixed(2)}″`} />
+              <CodeLine ok={stair.riseOk} text={`Riser ≤ 7-7/8″  (${stair.rise.toFixed(2)}″)`} />
+              <CodeLine ok={stair.runOk} text={`Run ≥ 10″  (${stair.run.toFixed(2)}″)`} />
+              <CodeLine ok={stair.widthOk} text={`Width ≥ 34″  (${formatFeetInches(furn.w)})`} />
+              <p className="text-[10px] leading-tight text-muted">2R+run {stair.comfort.toFixed(1)}″ (≈24–25″ ideal). Planning reference — confirm with NBC / your AHJ.</p>
+              {!(stair.riseOk && stair.runOk && stair.widthOk) && (
+                <button
+                  type="button"
+                  onClick={() => useProject.getState().updateFurniture(furn.id, { d: codeRunDepth(stairFtf), w: Math.max(furn.w, Math.ceil(STAIR_CODE.MIN_WIDTH_IN)) })}
+                  className="mt-1 rounded border border-accent px-2 py-1 text-[11px] text-accent hover:bg-accentSoft"
+                >
+                  Size to code
+                </button>
+              )}
+            </div>
+          )}
           <button type="button" onClick={() => useProject.getState().updateFurniture(furn.id, { rotation: ((furn.rotation || 0) + 90) % 360 })} className="flex items-center justify-center gap-1.5 rounded border border-line px-2 py-1.5 text-xs text-ink hover:bg-accentSoft">
             <RotateCw size={14} strokeWidth={1.75} /> Rotate 90°
           </button>

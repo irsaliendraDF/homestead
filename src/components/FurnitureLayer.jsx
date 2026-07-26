@@ -1,6 +1,6 @@
 import { useProject } from '../store/useProject.js'
 import { useEditor } from '../store/useEditor.js'
-import { furnitureStyle } from '../lib/furniture.js'
+import { furnitureStyle, isCloset } from '../lib/furniture.js'
 import { objectFootprint } from '../lib/landscape.js'
 import { COLOR } from '../tokens.js'
 
@@ -47,7 +47,7 @@ export default function FurnitureLayer({ zoom }) {
           <g key={f.id}>
             <g transform={`translate(${f.x} ${f.y}) rotate(${f.rotation || 0})`}>
               <rect data-furniture-id={f.id} x={-f.w / 2} y={-f.d / 2} width={f.w} height={f.d} fill={st.fill} stroke={sel ? COLOR.accent : st.stroke} strokeWidth={sel ? 2 : 1} vectorEffect="non-scaling-stroke" style={{ pointerEvents: 'all', cursor: 'move' }} />
-              <Glyph kind={f.kind} w={f.w} d={f.d} stroke={st.stroke} />
+              <Glyph kind={f.kind} w={f.w} d={f.d} label={f.label} stroke={st.stroke} />
             </g>
             {sel && <Handles obj={f} hs={hs} />}
           </g>
@@ -58,8 +58,20 @@ export default function FurnitureLayer({ zoom }) {
 }
 
 // Minimal plan glyphs so key items read at a glance (drawn in local coords).
-function Glyph({ kind, w, d, stroke }) {
+function Glyph({ kind, w, d, label, stroke }) {
   const s = { stroke, strokeWidth: 1, fill: 'none', vectorEffect: 'non-scaling-stroke', style: { pointerEvents: 'none' } }
+  if (isCloset(kind)) {
+    // closet rod along the back + a name so it reads as a closet, not a room
+    return (
+      <g>
+        <line x1={-w / 2 + 3} y1={-d / 2 + 4} x2={w / 2 - 3} y2={-d / 2 + 4} {...s} />
+        <line x1={-w / 2 + 3} y1={-d / 2 + 4} x2={w / 2 - 3} y2={-d / 2 + 4} {...s} strokeDasharray="2 4" />
+        <text x={0} y={4} textAnchor="middle" fontSize={9} fill={stroke} style={{ pointerEvents: 'none', fontFamily: 'DM Sans, sans-serif' }}>
+          {label || 'Closet'}
+        </text>
+      </g>
+    )
+  }
   if (kind === 'bathtub') return <ellipse cx={0} cy={0} rx={w / 2 - 3} ry={d / 2 - 3} {...s} />
   if (kind === 'toilet') return <ellipse cx={0} cy={d / 2 - 8} rx={w / 2 - 2} ry={7} {...s} />
   if (kind === 'shower') return <line x1={-w / 2} y1={-d / 2} x2={w / 2} y2={d / 2} {...s} />

@@ -1,7 +1,7 @@
 // Furnishings phase — headless checks: catalog, stairs treads, opening styles/
 // sizes, and the furniture store path + migration.
 import { FURNITURE_CATALOG } from '../src/config.js'
-import { FURNITURE_BY_KIND, furnitureStyle, stairTreads } from '../src/lib/furniture.js'
+import { FURNITURE_BY_KIND, furnitureStyle, stairTreads, stairSpec, codeRunDepth, STAIR_CODE, isCloset } from '../src/lib/furniture.js'
 import { OPENING_STYLES, OPENING_SIZES, useProject, makeDefaultProject, migrateProject } from '../src/store/useProject.js'
 
 let failures = 0
@@ -20,13 +20,30 @@ console.log('\nfurniture catalog covers what was asked')
   check('furnitureStyle returns a color', !!furnitureStyle('bathtub').fill)
 }
 
-console.log('\nstairs treads climb to the top')
+console.log('\nstairs are NBC code-aware (rise ≤ 7-7/8", run ≥ 10")')
 {
-  const t = stairTreads(120, 108)
-  console.log(`  ${t.length} treads, top = ${t[t.length - 1].y1}`)
-  check('~15 treads (7" risers)', t.length === 15)
-  check('reaches the floor height', t[t.length - 1].y1 === 108)
-  check('each tread rises above the last', t[1].y1 > t[0].y1)
+  const t = stairTreads(120, 108) // run 120, floor-to-floor 108
+  check('treads reach the floor height', Math.abs(t[t.length - 1].y1 - 108) < 0.5)
+  check('every riser ≤ NBC max (7-7/8")', 108 / t.length <= STAIR_CODE.MAX_RISE_IN + 0.01, String(108 / t.length))
+
+  const s = stairSpec(108, 120, 40)
+  console.log(`  108" rise over 120" run → ${s.risers} risers @ ${s.rise.toFixed(2)}", run ${s.run.toFixed(2)}"`)
+  check('riser height in code range', s.riseOk)
+  check('120" run is too short → runOk false', !s.runOk)
+  // size to code: recompute the run depth
+  const d = codeRunDepth(108)
+  const s2 = stairSpec(108, d, 40)
+  check(`sizing run to ${d}" makes it code-compliant`, s2.runOk && s2.riseOk, `run ${s2.run.toFixed(2)}`)
+}
+
+console.log('\ncloset elements (thin-walled, not rooms)')
+{
+  const kinds = FURNITURE_CATALOG.map((f) => f.kind)
+  check('has closet', kinds.includes('closet'))
+  check('has linen_closet', kinds.includes('linen_closet'))
+  check('has walkin_closet', kinds.includes('walkin_closet'))
+  check('isCloset flags them', isCloset('closet') && isCloset('wardrobe') && !isCloset('fridge'))
+  check('storage category present', FURNITURE_CATALOG.some((f) => f.category === 'storage'))
 }
 
 console.log('\nexpanded door/window styles + size presets')
