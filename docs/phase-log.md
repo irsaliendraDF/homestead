@@ -374,3 +374,33 @@ the most raycasting-heavy; flagged for Irene, easy to add later. Roof + 3D ceili
 the phase's acceptance.
 
 **Not merged to `main`** — pending Irene's look on the phase-7 preview.
+
+Phase 7 confirmed by Irene; merged to `main`.
+
+## Phase 8 — export — 2026-07-25 — branch `phase-8`
+
+**Delivered**
+- **Dimensioned floor-plan PDF** (`src/export/planPdf.js`, jsPDF vector primitives — NOT a
+  screenshot; text is selectable): one page per level, walls as poché, rooms filled + labeled
+  (name + sq ft), openings as gap+symbol, overall W/D dimension strings with ticks, title block
+  (project, level, scale `1:N`, date, "planning drawing — not for construction"). Scale: Fit /
+  1/4"=1' (1:48) / 1/8"=1' — a wall measures true against the printed scale.
+- **Spec sheet** (`src/export/specSheet.js`): room, opening, utility (fixture counts + run
+  totals), landscape, planting schedules, companion report, and garden-systems + parts lists,
+  with the "validate before building" note.
+- One **Export PDF** button (inspector Project section) → combined file. jsPDF is dynamically
+  imported (own 365 kB chunk) so the main bundle stays ~287 kB.
+- **Save file** (download project `.json`) + **Open file** (loads as a NEW project via
+  `importProject`, never overwrites) — the manual bridge between devices + backup.
+- Added **parsley** to the plant catalog (Irene's ask), companion-aware (helps tomato).
+- `verify-phase8.mjs`: PDF builds multi-page + produces bytes, project file round-trips + rejects
+  junk, parsley present. All PASS. Build clean.
+
+**Acceptance:** wall measures true at the stated scale (1:48 → 24' wall = 6" on paper) ✓; text
+selectable (vector) ✓; multi-level + landscape produces a complete document ✓.
+
+**Scope guard:** PDF only — no DWG/IFC/SVG/3D export.
+
+**Not merged to `main`** — pending Irene's look on the phase-8 preview. NEXT (Irene's batch):
+furnishings — stairs (in/out), appliances + cupboards, bathtub/showers, more door/window
+types + sizes, richer 3D detail.

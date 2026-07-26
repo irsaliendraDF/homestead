@@ -134,6 +134,17 @@ export async function switchProject(id) {
   useSession.getState()._set({ activeId: id, fitOnLoad: false })
 }
 
+/** Load a project from an opened file as a NEW project (never overwrites). */
+export async function importProject(project) {
+  const copy = { ...project, id: uid(), name: project.name || 'Imported homestead', updatedAt: new Date().toISOString() }
+  useProject.getState().setProject(migrateProject(copy))
+  useViewport.getState().reset()
+  useProject.temporal.getState().clear()
+  await db.saveProjectBlob(copy.id, currentBlob())
+  const index = await db.upsertSummary(summaryOf(copy), true)
+  useSession.getState()._set({ activeId: copy.id, summaries: index.summaries, fitOnLoad: true })
+}
+
 export async function removeProject(id) {
   const { summaries } = await db.deleteProject(id)
   useSession.getState()._set({ summaries })

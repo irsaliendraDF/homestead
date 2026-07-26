@@ -103,6 +103,8 @@ export const PLANT_CATALOG = [
     friends: ['basil', 'marigold', 'carrot', 'onion', 'nasturtium'], foes: ['brassica', 'corn', 'potato', 'fennel'] },
   { id: 'basil', label: 'Basil', spacingIn: 10, sun: 'full', water: 'med',
     friends: ['tomato', 'pepper'], foes: ['rue'] },
+  { id: 'parsley', label: 'Parsley', spacingIn: 6, sun: 'part', water: 'med',
+    friends: ['tomato', 'carrot', 'pepper', 'corn'], foes: [] },
   { id: 'carrot', label: 'Carrot', spacingIn: 3, sun: 'full', water: 'med',
     friends: ['tomato', 'onion', 'lettuce', 'pea'], foes: ['dill', 'fennel'] },
   { id: 'onion', label: 'Onion', spacingIn: 4, sun: 'full', water: 'low',

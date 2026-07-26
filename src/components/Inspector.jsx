@@ -1,4 +1,5 @@
-import { FilePlus2, Copy, Trash2, Check } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { FilePlus2, Copy, Trash2, Check, FileDown, Download, Upload } from 'lucide-react'
 import { useProject, OPENING_STYLES } from '../store/useProject.js'
 import { useEditor } from '../store/useEditor.js'
 import {
@@ -7,7 +8,9 @@ import {
   duplicateProject,
   switchProject,
   removeProject,
+  importProject,
 } from '../store/session.js'
+import { downloadProject, readProjectFile } from '../export/index.js'
 import { REGION, UNITS, ROOM_TYPES, SYSTEMS, GARDEN, PLANT_CATALOG } from '../config.js'
 import { formatFeetInches } from '../lib/units.js'
 import { roomAreaSqft, roomBounds, roomPolygon, overlappingRoomIds, sharedPairs } from '../lib/geometry.js'
@@ -73,6 +76,8 @@ function PlantTags({ crop }) {
 // active level's settings. Room properties arrive in Phase 2.
 export default function Inspector() {
   const project = useProject((s) => s.project)
+  const [scaleDen, setScaleDen] = useState('fit')
+  const fileRef = useRef(null)
   const summaries = useSession((s) => s.summaries)
   const activeId = useSession((s) => s.activeId)
 
@@ -581,6 +586,51 @@ export default function Inspector() {
           >
             <Copy size={14} strokeWidth={1.75} /> Duplicate
           </button>
+        </div>
+
+        <div className="flex flex-col gap-1.5 border-t border-line pt-2.5">
+          <div className="flex items-center gap-2">
+            <select value={scaleDen} onChange={(e) => setScaleDen(e.target.value)} className="rounded border border-line bg-canvas px-1.5 py-1 text-[11px] text-ink">
+              <option value="fit">Fit</option>
+              <option value="48">1/4&quot;=1&#39;</option>
+              <option value="96">1/8&quot;=1&#39;</option>
+            </select>
+            <button
+              type="button"
+              onClick={async () => {
+                const { exportProjectPdf } = await import('../export/pdf.js')
+                exportProjectPdf(project, scaleDen === 'fit' ? 'fit' : Number(scaleDen))
+              }}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded border border-line px-2 py-1.5 text-xs text-ink hover:bg-accentSoft"
+            >
+              <FileDown size={14} strokeWidth={1.75} /> Export PDF
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => downloadProject(project)} className="flex flex-1 items-center justify-center gap-1.5 rounded border border-line px-2 py-1.5 text-xs text-ink hover:bg-accentSoft">
+              <Download size={14} strokeWidth={1.75} /> Save file
+            </button>
+            <button type="button" onClick={() => fileRef.current?.click()} className="flex flex-1 items-center justify-center gap-1.5 rounded border border-line px-2 py-1.5 text-xs text-ink hover:bg-accentSoft">
+              <Upload size={14} strokeWidth={1.75} /> Open file
+            </button>
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={async (e) => {
+              const f = e.target.files?.[0]
+              e.target.value = ''
+              if (!f) return
+              try {
+                const p = await readProjectFile(f)
+                await importProject(p)
+              } catch (err) {
+                alert(err.message || 'Could not open that file.')
+              }
+            }}
+          />
         </div>
 
         {summaries.length > 1 && (
