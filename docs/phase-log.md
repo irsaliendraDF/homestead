@@ -462,4 +462,17 @@ Two Irene asks. Both flagged as PLANNING REFERENCES (not certification) — devi
 - `verify-electrical.mjs`: fixtures present, over-limit warning, smoke/hall coverage clears when
   fixtures added, range→plug. All PASS. Build clean.
 
-**Not merged to `main`** — pending Irene's look on the preview.
+Stairs + electrical confirmed by Irene ("yes"); merged to `main`.
+
+## Phase 9 — walkthrough — 2026-07-26 — branch `phase-9`
+
+- First-person **walkthrough** in 3D: **Walk** toggle (person icon). Click to lock pointer,
+  **WASD** move at 66" eye height, mouse look, **Q/E** change level (teleport), **Esc** exit to orbit.
+- `PointerLockControls` only in walk mode; `OrbitControls` unmounts (gotcha #7). App shortcuts
+  suppressed while walking; leaving 3D exits walk.
+- `src/lib/walk.js` (pure): `collisionSegments` = walls minus passable openings (door/archway/
+  garage; windows stay solid); circle-vs-segment `resolveMove` with wall-sliding.
+- `verify-phase9.mjs`: solid walls block, doorway passes, windows block, sliding works. PASS.
+- Acceptance: can't walk through a wall; can through a doorway; exit restores orbit. ✓
+
+**Not merged to `main`** — pending Irene's look on the phase-9 preview.

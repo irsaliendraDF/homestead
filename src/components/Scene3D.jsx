@@ -1,7 +1,7 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useEffect } from 'react'
 import * as THREE from 'three'
-import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Grid, Html, Line } from '@react-three/drei'
+import { Canvas, useThree, useFrame } from '@react-three/fiber'
+import { OrbitControls, Grid, Html, Line, PointerLockControls } from '@react-three/drei'
 import { useProject } from '../store/useProject.js'
 import { useEditor } from '../store/useEditor.js'
 import { resolveWalls, roomBounds } from '../lib/geometry.js'
@@ -11,7 +11,8 @@ import { LANDSCAPE_STYLE, houseBounds, objectFootprint } from '../lib/landscape.
 import { furnitureStyle, stairTreads } from '../lib/furniture.js'
 import { roofGeometry } from '../lib/roof.js'
 import { cropColor, plantSpacing } from '../lib/companions.js'
-import { SYSTEMS, DEFAULTS } from '../config.js'
+import { collisionSegments, resolveMove } from '../lib/walk.js'
+import { SYSTEMS, DEFAULTS, CAMERA } from '../config.js'
 import { formatFeetInches } from '../lib/units.js'
 
 // The plan, standing up. A pure projection of the same store the 2D editor
@@ -34,6 +35,8 @@ export default function Scene3D() {
   const showRoof = useEditor((s) => s.showRoof3d)
   const hidden = useEditor((s) => s.systemsHidden)
   const ceilingDrag = useEditor((s) => s.ceilingDrag)
+  const walk = useEditor((s) => s.walk)
+  const plRef = useRef(null)
 
   const { plot, levels, view, roof } = project
   const cx = plot.widthIn / 2
@@ -181,7 +184,14 @@ export default function Scene3D() {
         ))}
       </group>
 
-      <OrbitControls ref={controlsRef} makeDefault enableDamping dampingFactor={0.12} target={[0, 0, 0]} />
+      {walk ? (
+        <>
+          <PointerLockControls ref={plRef} onUnlock={() => useEditor.getState().setWalk(false)} />
+          <WalkController cx={cx} cz={cz} />
+        </>
+      ) : (
+        <OrbitControls ref={controlsRef} makeDefault enableDamping dampingFactor={0.12} target={[0, 0, 0]} />
+      )}
     </Canvas>
   )
 }
@@ -420,6 +430,89 @@ function FloorSlab({ bbox, y, color, opacity, transparent, thickness, below }) {
       <meshStandardMaterial color={color} roughness={1} metalness={0} transparent={transparent} opacity={opacity} />
     </mesh>
   )
+}
+
+// First-person walkthrough: WASD to move at eye height, mouse to look (pointer
+// lock), Q/E to change level, collision + wall-sliding against the level's walls.
+function WalkController({ cx, cz }) {
+  const camera = useThree((s) => s.camera)
+  const project = useProject((s) => s.project)
+  const level = project.levels.find((l) => l.id === project.view.activeLevelId)
+  const segs = useMemo(() => collisionSegments(level), [level])
+  const eyeY = level.floorElevationIn + CAMERA.WALK_EYE_HEIGHT_IN
+  const keys = useRef({})
+  const inited = useRef(false)
+
+  // Enter at the centre of the level's rooms, looking in.
+  useEffect(() => {
+    if (inited.current) return
+    inited.current = true
+    let px = cx
+    let py = cz
+    if (level.rooms?.length) {
+      let minX = Infinity
+      let minY = Infinity
+      let maxX = -Infinity
+      let maxY = -Infinity
+      for (const r of level.rooms) {
+        const b = roomBounds(r)
+        minX = Math.min(minX, b.x)
+        minY = Math.min(minY, b.y)
+        maxX = Math.max(maxX, b.x + b.w)
+        maxY = Math.max(maxY, b.y + b.d)
+      }
+      px = (minX + maxX) / 2
+      py = (minY + maxY) / 2
+    }
+    camera.position.set(px - cx, eyeY, py - cz)
+    camera.lookAt(px - cx, eyeY, py - cz - 100)
+  }, [camera, cx, cz, eyeY, level.rooms])
+
+  useEffect(() => {
+    const down = (e) => {
+      keys.current[e.code] = true
+      if (e.code === 'KeyQ' || e.code === 'KeyE') teleport(e.code === 'KeyE' ? 1 : -1)
+    }
+    const up = (e) => {
+      keys.current[e.code] = false
+    }
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const teleport = (dir) => {
+    const p = useProject.getState().project
+    const cur = p.levels.find((l) => l.id === p.view.activeLevelId)
+    const target = p.levels.find((l) => l.index === cur.index + dir)
+    if (target) useProject.getState().setActiveLevel(target.id)
+  }
+
+  useFrame((_, dt) => {
+    const k = keys.current
+    const fb = (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0)
+    const lr = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0)
+    if (fb || lr) {
+      const dir = new THREE.Vector3()
+      camera.getWorldDirection(dir)
+      dir.y = 0
+      dir.normalize()
+      const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize()
+      const speed = CAMERA.WALK_SPEED_IN_PER_S * Math.min(dt, 0.05)
+      const mx = (dir.x * fb + right.x * lr) * speed
+      const mz = (dir.z * fb + right.z * lr) * speed
+      const np = resolveMove(camera.position.x + cx, camera.position.z + cz, mx, mz, segs, CAMERA.WALK_COLLISION_RADIUS_IN)
+      camera.position.x = np.x - cx
+      camera.position.z = np.y - cz
+    }
+    camera.position.y = eyeY
+  })
+
+  return null
 }
 
 // Furniture massing, with a few recognizable shapes. Local coords inside a

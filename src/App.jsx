@@ -38,6 +38,7 @@ export default function App() {
     const onKey = (e) => {
       const tag = e.target?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return
+      if (useEditor.getState().walk) return // WASD/QE belong to the walkthrough
       const mod = e.ctrlKey || e.metaKey
       if (mod) {
         const key = e.key.toLowerCase()

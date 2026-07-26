@@ -25,6 +25,7 @@ export const useEditor = create((set) => ({
   showDims3d: false, // 3D exterior dimension labels
   showCeilings3d: false, // ceiling planes (off by default so you can see in)
   showRoof3d: true, // roof massing on/off
+  walk: false, // first-person walkthrough (only in 3D)
   selectedId: null, // selected room
   selectedWallId: null, // selected freestanding wall
   selectedOpeningId: null, // selected opening
@@ -78,11 +79,12 @@ export const useEditor = create((set) => ({
   setOpeningPreview: (openingPreview) => set({ openingPreview }),
   clearOpeningPreview: () => set({ openingPreview: null }),
 
-  setViewMode: (viewMode) => set({ viewMode }),
+  setViewMode: (viewMode) => set((s) => ({ viewMode, walk: viewMode === '3d' ? s.walk : false })),
   toggle3dAllLevels: () => set((s) => ({ show3dAllLevels: !s.show3dAllLevels })),
   toggleDims3d: () => set((s) => ({ showDims3d: !s.showDims3d })),
   toggleCeilings3d: () => set((s) => ({ showCeilings3d: !s.showCeilings3d })),
   toggleRoof3d: () => set((s) => ({ showRoof3d: !s.showRoof3d })),
+  setWalk: (walk) => set({ walk }),
 
   select: (selectedId) => set({ ...CLEAR, selectedId }),
   selectWall: (selectedWallId) => set({ ...CLEAR, selectedWallId }),

@@ -1,4 +1,4 @@
-import { Layers, Ruler, SquareDashedBottom, Triangle } from 'lucide-react'
+import { Layers, Ruler, SquareDashedBottom, Triangle, PersonStanding } from 'lucide-react'
 import { useEditor } from '../store/useEditor.js'
 
 // Bottom-left cluster for the 3D view: show all levels vs the active one,
@@ -8,8 +8,15 @@ export default function Controls3D() {
   const showDims = useEditor((s) => s.showDims3d)
   const showCeilings = useEditor((s) => s.showCeilings3d)
   const showRoof = useEditor((s) => s.showRoof3d)
+  const walk = useEditor((s) => s.walk)
 
   return (
+    <>
+    {walk && (
+      <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-lg border border-line bg-panel/95 px-3 py-1.5 text-xs text-ink shadow-sm backdrop-blur">
+        Click to look · <span className="num">WASD</span> move · <span className="num">Q/E</span> level · <span className="num">Esc</span> exit
+      </div>
+    )}
     <div className="absolute bottom-4 left-4 flex items-center gap-1 rounded-lg border border-line bg-panel/95 p-1 shadow-sm backdrop-blur">
       <Toggle label={showAll ? 'Showing all levels' : 'Showing active level'} active={showAll} onClick={() => useEditor.getState().toggle3dAllLevels()}>
         <Layers size={15} strokeWidth={1.75} />
@@ -23,7 +30,12 @@ export default function Controls3D() {
       <Toggle label={showRoof ? 'Hide roof' : 'Show roof'} active={showRoof} onClick={() => useEditor.getState().toggleRoof3d()}>
         <Triangle size={15} strokeWidth={1.75} />
       </Toggle>
+      <span className="mx-0.5 h-4 w-px bg-line" />
+      <Toggle label={walk ? 'Exit walkthrough' : 'Walk through'} active={walk} onClick={() => useEditor.getState().setWalk(!walk)}>
+        <PersonStanding size={15} strokeWidth={1.75} />
+      </Toggle>
     </div>
+    </>
   )
 }
 
