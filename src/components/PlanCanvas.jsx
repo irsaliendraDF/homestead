@@ -8,6 +8,7 @@ import { usePlanInteractions } from '../hooks/usePlanInteractions.js'
 import { roomPolygon } from '../lib/geometry.js'
 import RoomsLayer from './RoomsLayer.jsx'
 import LandscapeLayer from './LandscapeLayer.jsx'
+import GardenLayer from './GardenLayer.jsx'
 import { COLOR } from '../tokens.js'
 
 const ptsStr = (pts) => pts.map((p) => `${p.x},${p.y}`).join(' ')
@@ -105,7 +106,10 @@ export default function PlanCanvas() {
           )}
 
           {canvasMode === 'landscape' ? (
-            <LandscapeLayer interactive zoom={vp.zoom} />
+            <>
+              <LandscapeLayer interactive zoom={vp.zoom} />
+              <GardenLayer zoom={vp.zoom} />
+            </>
           ) : (
             <>
               <LandscapeLayer interactive={false} zoom={vp.zoom} />

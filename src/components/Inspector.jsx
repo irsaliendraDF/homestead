@@ -8,14 +8,16 @@ import {
   switchProject,
   removeProject,
 } from '../store/session.js'
-import { REGION, UNITS, ROOM_TYPES, SYSTEMS } from '../config.js'
+import { REGION, UNITS, ROOM_TYPES, SYSTEMS, GARDEN, PLANT_CATALOG } from '../config.js'
 import { formatFeetInches } from '../lib/units.js'
 import { roomAreaSqft, roomBounds, roomPolygon, overlappingRoomIds, sharedPairs } from '../lib/geometry.js'
 import { runLengthIn, effectiveRunPoints } from '../lib/runs.js'
 import { setbacks, distanceToHouse, houseBounds } from '../lib/landscape.js'
+import { zoneCapacity, zoneOverPlanting, PLANT_BY_ID } from '../lib/companions.js'
 import DimensionInput from './DimensionInput.jsx'
 import UtilitiesPanel from './UtilitiesPanel.jsx'
 import LandscapePanel from './LandscapePanel.jsx'
+import GardenPanel from './GardenPanel.jsx'
 import { RotateCw } from 'lucide-react'
 
 const k2 = (a, b) => [a, b].sort().join('|')
@@ -47,6 +49,16 @@ function SetbackRow({ label, value }) {
   )
 }
 
+function PlantTags({ crop }) {
+  return (
+    <div className="flex flex-wrap gap-1.5 text-[11px]">
+      <span className="rounded bg-line px-1.5 py-0.5 text-muted">Sun: {crop.sun} ({GARDEN.SUN[crop.sun]})</span>
+      <span className="rounded bg-line px-1.5 py-0.5 text-muted">Water: {crop.water}</span>
+      <span className="rounded bg-line px-1.5 py-0.5 text-muted">Spacing: {formatFeetInches(crop.spacingIn)}</span>
+    </div>
+  )
+}
+
 // Right-hand inspector. Phase 1 scope: project management, plot size, and the
 // active level's settings. Room properties arrive in Phase 2.
 export default function Inspector() {
@@ -74,7 +86,11 @@ export default function Inspector() {
   const otherLevels = project.levels.filter((l) => l.id !== project.view.activeLevelId)
   const canvasMode = useEditor((s) => s.canvasMode)
   const selectedLandscapeId = useEditor((s) => s.selectedLandscapeId)
+  const selectedZoneId = useEditor((s) => s.selectedZoneId)
+  const selectedPlantId = useEditor((s) => s.selectedPlantId)
   const lobj = project.landscape.objects.find((o) => o.id === selectedLandscapeId)
+  const zone = project.landscape.zones.find((z) => z.id === selectedZoneId)
+  const plant = project.landscape.plants.find((p) => p.id === selectedPlantId)
 
   // Rooms that share a wall with the selected room, and whether they're joined.
   const neighbors = room
@@ -90,7 +106,53 @@ export default function Inspector() {
 
   // Landscape (Site) mode takes over the inspector.
   if (canvasMode === 'landscape') {
-    if (!lobj) return <div className="flex h-full flex-col overflow-y-auto"><LandscapePanel /></div>
+    if (zone) {
+      const cap = zoneCapacity(zone)
+      const { count, over } = zoneOverPlanting(zone, project.landscape.plants)
+      const crop = PLANT_BY_ID[zone.cropId]
+      return (
+        <div className="flex h-full flex-col overflow-y-auto">
+          <Section title={zone.name}>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-muted">Crop</span>
+              <select value={zone.cropId} onChange={(e) => useProject.getState().updateZone(zone.id, { cropId: e.target.value })} className="w-full rounded border border-line bg-canvas px-2 py-1 text-sm text-ink">
+                {PLANT_CATALOG.map((p) => (
+                  <option key={p.id} value={p.id}>{p.label}</option>
+                ))}
+              </select>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <DimensionInput label="Width" valueIn={zone.w} min={6} onCommit={(v) => useProject.getState().updateZone(zone.id, { w: v })} />
+              <DimensionInput label="Depth" valueIn={zone.d} min={6} onCommit={(v) => useProject.getState().updateZone(zone.id, { d: v })} />
+            </div>
+            <div className="flex items-center justify-between text-xs text-muted">
+              <span>Capacity</span>
+              <span className="num text-ink">holds ~{cap}</span>
+            </div>
+            {over && <p className="rounded bg-alert/10 px-2 py-1.5 text-[11px] text-alert">Over-planted — {count} placed in a bed that holds ~{cap}.</p>}
+            {crop && <PlantTags crop={crop} />}
+            <button type="button" onClick={() => { useProject.getState().removeZone(zone.id); useEditor.getState().clearSelection() }} className="flex items-center justify-center gap-1.5 rounded border border-line px-2 py-1.5 text-xs text-alert hover:bg-alert/10">
+              <Trash2 size={14} strokeWidth={1.75} /> Delete bed
+            </button>
+          </Section>
+        </div>
+      )
+    }
+    if (plant) {
+      const p = PLANT_BY_ID[plant.plantId]
+      return (
+        <div className="flex h-full flex-col overflow-y-auto">
+          <Section title={p?.label || 'Plant'}>
+            {p && <PlantTags crop={p} />}
+            <div className="text-xs text-muted">{plant.zoneId ? 'Planted in a bed' : 'Free-standing'}</div>
+            <button type="button" onClick={() => { useProject.getState().removePlant(plant.id); useEditor.getState().clearSelection() }} className="flex items-center justify-center gap-1.5 rounded border border-line px-2 py-1.5 text-xs text-alert hover:bg-alert/10">
+              <Trash2 size={14} strokeWidth={1.75} /> Remove plant
+            </button>
+          </Section>
+        </div>
+      )
+    }
+    if (!lobj) return <div className="flex h-full flex-col overflow-y-auto"><LandscapePanel /><GardenPanel /></div>
     const sb = setbacks(lobj, project.plot)
     const toHouse = distanceToHouse(lobj, houseBounds(project))
     return (

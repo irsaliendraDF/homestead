@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { temporal } from 'zundo'
-import { DEFAULTS, UNITS } from '../config.js'
+import { DEFAULTS, UNITS, GARDEN_PRESETS, PLANT_CATALOG } from '../config.js'
 
 // State mutates ONLY through the actions below. Components never set fields
 // directly — that keeps undo/redo, autosave, and future validation honest.
@@ -274,6 +274,98 @@ export const useProject = create(
             landscape: { ...s.project.landscape, objects: s.project.landscape.objects.filter((o) => o.id !== id) },
           }),
         })),
+
+      // ── Garden: planting zones + individual plants ──────
+      toggleGardenIntel: () =>
+        set((s) => ({ project: touch(s.project, { view: { ...s.project.view, gardenIntel: !s.project.view.gardenIntel } }) })),
+
+      addZone: ({ x, y, w, d, cropId, name }) =>
+        set((s) => {
+          const crop = PLANT_CATALOG.find((p) => p.id === cropId)
+          const zone = {
+            id: uid(),
+            x: Math.round(x),
+            y: Math.round(y),
+            w: Math.max(6, Math.round(w)),
+            d: Math.max(6, Math.round(d)),
+            rotation: 0,
+            cropId,
+            name: name || `${crop ? crop.label : 'Crop'} bed`,
+            notes: '',
+          }
+          return {
+            project: touch(s.project, { landscape: { ...s.project.landscape, zones: [...s.project.landscape.zones, zone] } }),
+            _lastZoneId: zone.id,
+          }
+        }),
+
+      updateZone: (id, patch) =>
+        set((s) => {
+          const clean = {}
+          for (const [k, v] of Object.entries(patch)) clean[k] = ['x', 'y', 'w', 'd', 'rotation'].includes(k) ? Math.round(v) : v
+          if ('w' in clean) clean.w = Math.max(6, clean.w)
+          if ('d' in clean) clean.d = Math.max(6, clean.d)
+          return {
+            project: touch(s.project, {
+              landscape: { ...s.project.landscape, zones: s.project.landscape.zones.map((z) => (z.id === id ? { ...z, ...clean } : z)) },
+            }),
+          }
+        }),
+
+      removeZone: (id) =>
+        set((s) => ({
+          project: touch(s.project, {
+            landscape: {
+              ...s.project.landscape,
+              zones: s.project.landscape.zones.filter((z) => z.id !== id),
+              plants: s.project.landscape.plants.map((p) => (p.zoneId === id ? { ...p, zoneId: null } : p)),
+            },
+          }),
+        })),
+
+      addPlant: ({ plantId, x, y, zoneId = null }) =>
+        set((s) => {
+          const plant = { id: uid(), plantId, x: Math.round(x), y: Math.round(y), zoneId }
+          return {
+            project: touch(s.project, { landscape: { ...s.project.landscape, plants: [...s.project.landscape.plants, plant] } }),
+            _lastPlantId: plant.id,
+          }
+        }),
+
+      updatePlant: (id, patch) =>
+        set((s) => {
+          const clean = {}
+          for (const [k, v] of Object.entries(patch)) clean[k] = ['x', 'y'].includes(k) ? Math.round(v) : v
+          return {
+            project: touch(s.project, {
+              landscape: { ...s.project.landscape, plants: s.project.landscape.plants.map((p) => (p.id === id ? { ...p, ...clean } : p)) },
+            }),
+          }
+        }),
+
+      removePlant: (id) =>
+        set((s) => ({
+          project: touch(s.project, {
+            landscape: { ...s.project.landscape, plants: s.project.landscape.plants.filter((p) => p.id !== id) },
+          }),
+        })),
+
+      // Drop a preset guild (Three Sisters, etc.) as a row of plants at a point.
+      addPreset: (presetId, x, y) =>
+        set((s) => {
+          const preset = GARDEN_PRESETS.find((p) => p.id === presetId)
+          if (!preset) return {}
+          const newPlants = preset.plants.map((plantId, i) => ({
+            id: uid(),
+            plantId,
+            x: Math.round(x + i * 24),
+            y: Math.round(y),
+            zoneId: null,
+          }))
+          return {
+            project: touch(s.project, { landscape: { ...s.project.landscape, plants: [...s.project.landscape.plants, ...newPlants] } }),
+          }
+        }),
 
       // ── Rooms (on the active level) ─────────────────────
       // Rooms are polygons: room.points = [{x,y}, …], integer inches. A new room

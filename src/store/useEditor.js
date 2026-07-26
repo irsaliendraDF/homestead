@@ -8,6 +8,8 @@ const CLEAR = {
   selectedFixtureId: null,
   selectedRunId: null,
   selectedLandscapeId: null,
+  selectedZoneId: null,
+  selectedPlantId: null,
 }
 
 // Transient editor state: active tool, selection, and live drag preview. None of
@@ -29,6 +31,15 @@ export const useEditor = create((set) => ({
   canvasMode: 'building', // 'building' | 'landscape'
   pendingLandscape: null, // { kind, label, w, d, heightIn } armed for placement
   landscapePreview: null, // { id, x, y, w, d } while moving/resizing
+
+  // Garden
+  gardenTool: null, // null | 'zone' | 'plant'
+  activeCrop: 'tomato', // crop for the next zone/plant
+  pendingPreset: null, // GARDEN_PRESETS id armed for a one-click drop
+  selectedZoneId: null,
+  selectedPlantId: null,
+  zonePreview: null, // { id?, x, y, w, d } while drawing/editing a zone
+  plantPreview: null, // { id, x, y } while moving a plant
 
   // Utilities
   activeSystem: 'electrical',
@@ -62,14 +73,26 @@ export const useEditor = create((set) => ({
   selectFixture: (selectedFixtureId) => set({ ...CLEAR, selectedFixtureId }),
   selectRun: (selectedRunId) => set({ ...CLEAR, selectedRunId }),
   selectLandscape: (selectedLandscapeId) => set({ ...CLEAR, selectedLandscapeId }),
+  selectZone: (selectedZoneId) => set({ ...CLEAR, selectedZoneId }),
+  selectPlant: (selectedPlantId) => set({ ...CLEAR, selectedPlantId }),
   clearSelection: () => set({ ...CLEAR }),
 
   // Site / landscape actions
-  setCanvasMode: (canvasMode) => set({ ...CLEAR, canvasMode, tool: 'select', pendingLandscape: null, landscapePreview: null }),
-  armLandscape: (pendingLandscape) => set({ ...CLEAR, pendingLandscape }),
+  setCanvasMode: (canvasMode) => set({ ...CLEAR, canvasMode, tool: 'select', pendingLandscape: null, landscapePreview: null, gardenTool: null, pendingPreset: null }),
+  armLandscape: (pendingLandscape) => set({ ...CLEAR, pendingLandscape, gardenTool: null, pendingPreset: null }),
   disarmLandscape: () => set({ pendingLandscape: null }),
   setLandscapePreview: (landscapePreview) => set({ landscapePreview }),
   clearLandscapePreview: () => set({ landscapePreview: null }),
+
+  // Garden actions
+  setGardenTool: (gardenTool) => set({ ...CLEAR, gardenTool, pendingLandscape: null, pendingPreset: null }),
+  setActiveCrop: (activeCrop) => set({ activeCrop }),
+  armPreset: (pendingPreset) => set({ ...CLEAR, pendingPreset, gardenTool: null, pendingLandscape: null }),
+  disarmGarden: () => set({ gardenTool: null, pendingPreset: null }),
+  setZonePreview: (zonePreview) => set({ zonePreview }),
+  clearZonePreview: () => set({ zonePreview: null }),
+  setPlantPreview: (plantPreview) => set({ plantPreview }),
+  clearPlantPreview: () => set({ plantPreview: null }),
 
   // Utilities
   setActiveSystem: (activeSystem) => set({ activeSystem }),

@@ -77,20 +77,24 @@ export default function App() {
         if (ed.runDraft) ed.cancelRun()
         else if (ed.pendingFixture) ed.disarmFixture()
         else if (ed.pendingLandscape) ed.disarmLandscape()
+        else if (ed.gardenTool || ed.pendingPreset) ed.disarmGarden()
         else {
           if (ed.canvasMode !== 'landscape') ed.setTool('select')
           ed.clearSelection()
         }
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        const { selectedId, selectedWallId, selectedOpeningId, selectedFixtureId, selectedRunId, selectedLandscapeId } = useEditor.getState()
-        if (selectedId || selectedWallId || selectedOpeningId || selectedFixtureId || selectedRunId || selectedLandscapeId) {
+        const s = useEditor.getState()
+        const anySel = s.selectedId || s.selectedWallId || s.selectedOpeningId || s.selectedFixtureId || s.selectedRunId || s.selectedLandscapeId || s.selectedZoneId || s.selectedPlantId
+        if (anySel) {
           e.preventDefault()
-          if (selectedId) useProject.getState().removeRoom(selectedId)
-          if (selectedWallId) useProject.getState().removeWall(selectedWallId)
-          if (selectedOpeningId) useProject.getState().removeOpening(selectedOpeningId)
-          if (selectedFixtureId) useProject.getState().removeFixture(selectedFixtureId)
-          if (selectedRunId) useProject.getState().removeRun(selectedRunId)
-          if (selectedLandscapeId) useProject.getState().removeLandscapeObject(selectedLandscapeId)
+          if (s.selectedId) useProject.getState().removeRoom(s.selectedId)
+          if (s.selectedWallId) useProject.getState().removeWall(s.selectedWallId)
+          if (s.selectedOpeningId) useProject.getState().removeOpening(s.selectedOpeningId)
+          if (s.selectedFixtureId) useProject.getState().removeFixture(s.selectedFixtureId)
+          if (s.selectedRunId) useProject.getState().removeRun(s.selectedRunId)
+          if (s.selectedLandscapeId) useProject.getState().removeLandscapeObject(s.selectedLandscapeId)
+          if (s.selectedZoneId) useProject.getState().removeZone(s.selectedZoneId)
+          if (s.selectedPlantId) useProject.getState().removePlant(s.selectedPlantId)
           useEditor.getState().clearSelection()
         }
       }

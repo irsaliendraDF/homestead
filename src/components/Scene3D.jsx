@@ -7,6 +7,7 @@ import { resolveWalls, roomBounds } from '../lib/geometry.js'
 import { openingWorldSegment, wallSpans } from '../lib/openings.js'
 import { effectiveRunPoints, fixtureFootprint } from '../lib/runs.js'
 import { LANDSCAPE_STYLE } from '../lib/landscape.js'
+import { cropColor, plantSpacing } from '../lib/companions.js'
 import { SYSTEMS } from '../config.js'
 import { formatFeetInches } from '../lib/units.js'
 
@@ -83,6 +84,22 @@ export default function Scene3D() {
         {(project.landscape?.objects || []).map((o) => (
           <LandscapeObject3D key={o.id} o={o} />
         ))}
+        {/* Garden zones (flat insets) + plants (low mounds) */}
+        {(project.landscape?.zones || []).map((z) => (
+          <mesh key={z.id} position={[z.x + z.w / 2, 0.6, z.y + z.d / 2]} receiveShadow>
+            <boxGeometry args={[z.w, 1, z.d]} />
+            <meshStandardMaterial color={cropColor(z.cropId)} roughness={1} transparent opacity={0.5} />
+          </mesh>
+        ))}
+        {(project.landscape?.plants || []).map((p) => {
+          const r = Math.max(3, Math.min(plantSpacing(p.plantId) / 2, 14))
+          return (
+            <mesh key={p.id} position={[p.x, r, p.y]} castShadow>
+              <sphereGeometry args={[r, 10, 8]} />
+              <meshStandardMaterial color={cropColor(p.plantId)} roughness={1} />
+            </mesh>
+          )
+        })}
         {visible.map((level) => (
           <LevelMeshes
             key={level.id}

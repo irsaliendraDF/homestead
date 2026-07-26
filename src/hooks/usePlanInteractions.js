@@ -89,10 +89,53 @@ export function usePlanInteractions(svgRef, spaceRef) {
     useEditor.getState().clearSelection()
   }
 
-  // Landscape (site) mode: place / move / resize landscape objects.
+  // Landscape (site) mode: place / move / resize objects, zones, plants.
   const handleLandscapeDown = (e, start) => {
     const ed = useEditor.getState()
     const project = useProject.getState().project
+
+    // Garden placement
+    if (ed.pendingPreset) {
+      useProject.getState().addPreset(ed.pendingPreset, start.x, start.y)
+      return
+    }
+    if (ed.gardenTool === 'plant') {
+      useProject.getState().addPlant({ plantId: ed.activeCrop, x: start.x, y: start.y, zoneId: zoneAt(project, start) })
+      useEditor.getState().selectPlant(useProject.getState()._lastPlantId)
+      return
+    }
+    if (ed.gardenTool === 'zone') {
+      it.current = { mode: 'zone-draw', start }
+      svgRef.current.setPointerCapture(e.pointerId)
+      return
+    }
+
+    // Garden hit-tests (before objects, since plants/zones sit on top)
+    const plantId = e.target.getAttribute?.('data-plant-id')
+    const zoneHandle = e.target.getAttribute?.('data-zone-handle')
+    const zoneId = e.target.getAttribute?.('data-zone-id')
+    if (plantId) {
+      const pl = project.landscape.plants.find((p) => p.id === plantId)
+      useEditor.getState().selectPlant(plantId)
+      it.current = { mode: 'plant-move', plantId, orig: { ...pl }, start }
+      svgRef.current.setPointerCapture(e.pointerId)
+      return
+    }
+    if (zoneHandle && zoneId) {
+      const z = project.landscape.zones.find((zz) => zz.id === zoneId)
+      useEditor.getState().selectZone(zoneId)
+      it.current = { mode: 'zone-resize', zoneId, handle: zoneHandle, orig: { ...z }, start }
+      svgRef.current.setPointerCapture(e.pointerId)
+      return
+    }
+    if (zoneId) {
+      const z = project.landscape.zones.find((zz) => zz.id === zoneId)
+      useEditor.getState().selectZone(zoneId)
+      it.current = { mode: 'zone-move', zoneId, orig: { ...z }, start }
+      svgRef.current.setPointerCapture(e.pointerId)
+      return
+    }
+
     if (ed.pendingLandscape) {
       const p = ed.pendingLandscape
       useProject.getState().addLandscapeObject({ kind: p.kind, label: p.label, x: start.x, y: start.y, w: p.w, d: p.d, heightIn: p.heightIn, rotation: 0 })
@@ -288,6 +331,47 @@ export function usePlanInteractions(svgRef, spaceRef) {
       return
     }
 
+    if (cur.mode === 'zone-draw') {
+      const r = normalize(cur.start, world(e))
+      useEditor.getState().setZonePreview({ x: r.x, y: r.y, w: r.w, d: r.d })
+      return
+    }
+    if (cur.mode === 'zone-move') {
+      const p = world(e)
+      const g = UNITS.SNAP_IN
+      const x = Math.round((cur.orig.x + (p.x - cur.start.x)) / g) * g
+      const y = Math.round((cur.orig.y + (p.y - cur.start.y)) / g) * g
+      useEditor.getState().setZonePreview({ id: cur.zoneId, x, y, w: cur.orig.w, d: cur.orig.d })
+      return
+    }
+    if (cur.mode === 'zone-resize') {
+      const p = world(e)
+      let left = cur.orig.x
+      let right = cur.orig.x + cur.orig.w
+      let top = cur.orig.y
+      let bottom = cur.orig.y + cur.orig.d
+      const dx = p.x - cur.start.x
+      const dy = p.y - cur.start.y
+      const h = cur.handle
+      const MIN = 12
+      if (h.includes('w')) left = cur.orig.x + dx
+      if (h.includes('e')) right = cur.orig.x + cur.orig.w + dx
+      if (h.includes('n')) top = cur.orig.y + dy
+      if (h.includes('s')) bottom = cur.orig.y + cur.orig.d + dy
+      if (right - left < MIN) h.includes('w') ? (left = right - MIN) : (right = left + MIN)
+      if (bottom - top < MIN) h.includes('n') ? (top = bottom - MIN) : (bottom = top + MIN)
+      useEditor.getState().setZonePreview({ id: cur.zoneId, x: left, y: top, w: right - left, d: bottom - top })
+      return
+    }
+    if (cur.mode === 'plant-move') {
+      const p = world(e)
+      const g = UNITS.SNAP_IN
+      const x = Math.round((cur.orig.x + (p.x - cur.start.x)) / g) * g
+      const y = Math.round((cur.orig.y + (p.y - cur.start.y)) / g) * g
+      useEditor.getState().setPlantPreview({ id: cur.plantId, x, y })
+      return
+    }
+
     if (cur.mode === 'pan') {
       const dx = e.clientX - cur.last.x
       const dy = e.clientY - cur.last.y
@@ -449,6 +533,31 @@ export function usePlanInteractions(svgRef, spaceRef) {
       return
     }
 
+    if (cur.mode === 'zone-draw') {
+      const pv = useEditor.getState().zonePreview
+      useEditor.getState().clearZonePreview()
+      if (pv && pv.w >= 12 && pv.d >= 12) {
+        useProject.getState().addZone({ x: pv.x, y: pv.y, w: pv.w, d: pv.d, cropId: useEditor.getState().activeCrop })
+        useEditor.getState().selectZone(useProject.getState()._lastZoneId)
+      }
+      return
+    }
+    if (cur.mode === 'zone-move' || cur.mode === 'zone-resize') {
+      const pv = useEditor.getState().zonePreview
+      useEditor.getState().clearZonePreview()
+      if (pv) useProject.getState().updateZone(cur.zoneId, { x: pv.x, y: pv.y, w: pv.w, d: pv.d })
+      return
+    }
+    if (cur.mode === 'plant-move') {
+      const pv = useEditor.getState().plantPreview
+      useEditor.getState().clearPlantPreview()
+      if (pv) {
+        const project = useProject.getState().project
+        useProject.getState().updatePlant(cur.plantId, { x: pv.x, y: pv.y, zoneId: zoneAt(project, pv) })
+      }
+      return
+    }
+
     const preview = useEditor.getState().preview
     const wallPreview = useEditor.getState().wallPreview
     const openingPreview = useEditor.getState().openingPreview
@@ -525,6 +634,13 @@ function bounds(points) {
 }
 function guides(sx, sy) {
   return { xs: sx.guide != null ? [sx.guide] : [], ys: sy.guide != null ? [sy.guide] : [] }
+}
+
+function zoneAt(project, p) {
+  for (const z of project.landscape.zones) {
+    if (p.x >= z.x && p.x <= z.x + z.w && p.y >= z.y && p.y <= z.y + z.d) return z.id
+  }
+  return null
 }
 
 function landscapeCandidates(objects, plot) {

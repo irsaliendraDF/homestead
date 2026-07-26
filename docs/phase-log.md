@@ -291,3 +291,31 @@ positions/heights relative to the house ✓.
 companions, systems, assist) is Phases 6.1–6.3, next.
 
 **Not merged to `main`** — pending Irene's look at Site mode on the phase-6 preview.
+
+Phase 6 confirmed by Irene ("great"); merged to `main`.
+
+## Phase 6.1 — garden: zones, plants, companion checking — 2026-07-25 — branch `phase-6-1`
+
+**Delivered** (all in Site mode, in the garden panel)
+- **Crop picker** + **Zone** tool (drag a rectangle → a bed of the crop, shows computed
+  capacity) and **Plant** tool (click to drop one plant, auto-linked to a zone if inside one).
+- **Presets** (one-click): Three Sisters, salad bed, pest border → drops the guild as a row.
+- **Companion overlay** (`project.view.gardenIntel`, OFF by default): green hairline between
+  friends, alert hairline between foes, faint spacing ring per plant, per-zone capacity /
+  over-planting label, and a plain-language conflict list in the panel.
+- `src/lib/companions.js` (pure): `companionVerdict`, `checkGarden` (O(n²), only when overlay
+  on + memoized), `zoneCapacity`, `zoneOverPlanting`, `cropColor`. Relationships derived from
+  `PLANT_CATALOG`, never stored.
+- Plant/zone selection: move (grid-snapped), zone resize (8 handles), inspector shows crop,
+  capacity/over, sun/water/spacing tags. NS **growing-window strip** (hardiness, frost, ~days).
+- 3D: zones as flat colored insets, plants as low colored mounds (size by spacing class).
+- `verify-phase6-1.mjs`: verdicts, 18" adjacency, capacity=512 for 4'×8' carrots, over-planting,
+  Three Sisters no-foes. All PASS. Build clean.
+
+**Acceptance:** tomato+basil within 18" → green "Basil helps tomato" ✓; tomato+brassica → red
+clash ✓; 4'×8' carrot bed capacity + over-planting flag ✓; overlay OFF by default ✓; Three
+Sisters places corn/bean/squash with no foes ✓.
+
+**Scope guard:** baked-in catalog only — no live AI (that's 6.3), no growth/yield/season sim.
+
+**Not merged to `main`** — pending Irene's look on the phase-6-1 preview.
