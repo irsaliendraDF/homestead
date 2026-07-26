@@ -249,6 +249,53 @@ export const useProject = create(
 
       setRoof: (patch) => set((s) => ({ project: touch(s.project, { roof: { ...s.project.roof, ...patch } }) })),
 
+      // Duplicate a whole level (rooms, walls, openings, furniture, fixtures, runs)
+      // with fresh ids — the fast way to build a second storey.
+      duplicateLevel: (levelId) =>
+        set((s) => {
+          const src = s.project.levels.find((l) => l.id === levelId)
+          if (!src) return {}
+          const maxIndex = Math.max(...s.project.levels.map((l) => l.index))
+          const roomMap = {}
+          const wallMap = {}
+          const fixMap = {}
+          const rooms = (src.rooms || []).map((r) => {
+            const id = uid()
+            roomMap[r.id] = id
+            return { ...structuredClone(r), id }
+          })
+          const walls = (src.walls || []).map((w) => {
+            const id = uid()
+            wallMap[w.id] = id
+            return { ...structuredClone(w), id }
+          })
+          const fixtures = (src.fixtures || []).map((f) => {
+            const id = uid()
+            fixMap[f.id] = id
+            return { ...structuredClone(f), id }
+          })
+          const runs = (src.runs || []).map((r) => ({
+            ...structuredClone(r),
+            id: uid(),
+            fromFixtureId: fixMap[r.fromFixtureId] || r.fromFixtureId,
+            toFixtureId: fixMap[r.toFixtureId] || r.toFixtureId,
+          }))
+          const openings = (src.openings || []).map((o) => ({
+            ...structuredClone(o),
+            id: uid(),
+            roomId: o.roomId ? roomMap[o.roomId] || o.roomId : o.roomId,
+            wallId: o.wallId ? wallMap[o.wallId] || o.wallId : o.wallId,
+          }))
+          const furniture = (src.furniture || []).map((f) => ({ ...structuredClone(f), id: uid() }))
+          const mergedPairs = (src.mergedPairs || []).map((k) => {
+            const [a, b] = k.split('|')
+            return [roomMap[a] || a, roomMap[b] || b].sort().join('|')
+          })
+          const newLevel = { ...structuredClone(src), id: uid(), index: maxIndex + 1, name: `${src.name} copy`, rooms, walls, fixtures, runs, openings, furniture, mergedPairs }
+          const levels = recomputeElevations([...s.project.levels, newLevel])
+          return { project: touch(s.project, { levels, view: { ...s.project.view, activeLevelId: newLevel.id } }) }
+        }),
+
       // name / ceilingHeightIn / footingDepthIn
       updateLevel: (levelId, patch) =>
         set((s) => {

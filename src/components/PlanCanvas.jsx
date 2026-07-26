@@ -27,6 +27,7 @@ export default function PlanCanvas() {
   const vp = useViewport()
   const tool = useEditor((s) => s.tool)
   const canvasMode = useEditor((s) => s.canvasMode)
+  const fitTick = useEditor((s) => s.fitTick)
   const fitOnLoad = useSession((s) => s.fitOnLoad)
 
   const { onPointerDown, onPointerMove, onPointerUp } = usePlanInteractions(svgRef, spaceRef)
@@ -47,6 +48,12 @@ export default function PlanCanvas() {
     useViewport.getState().setView(fitView(plot.widthIn, plot.depthIn, size.w, size.h))
     useSession.getState()._set({ fitOnLoad: false })
   }, [fitOnLoad, size.w, size.h, plot.widthIn, plot.depthIn])
+
+  // Zoom-to-fit on request (F key).
+  useEffect(() => {
+    if (fitTick === 0 || size.w === 0 || size.h === 0) return
+    useViewport.getState().setView(fitView(plot.widthIn, plot.depthIn, size.w, size.h))
+  }, [fitTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const down = (e) => {

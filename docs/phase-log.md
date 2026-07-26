@@ -488,3 +488,25 @@ Stairs + electrical confirmed by Irene ("yes"); merged to `main`.
   + label in 2D; a thin-walled open-front enclosure + shelf in 3D. `isCloset()` helper.
 - `verify-furnishings.mjs` updated: stair code (rise ≤ max, short run flagged, size-to-code
   fixes it) + closet catalog. All PASS. Build clean.
+
+Walkthrough + stairs + closets confirmed by Irene ("yes merge and continue"); merged to `main`.
+
+## Phase 10 — polish — 2026-07-26 — branch `phase-10`
+
+**Delivered** (final planned phase — MVP complete)
+- **Keyboard shortcuts** + a **`?` overlay** (`ShortcutsOverlay`, help button in the title bar,
+  `?` key). New keys: `[`/`]` change level, `F` zoom to fit, `G` toggle grid, `L` Building⇄Site,
+  plus existing R/D/W/U/V/3/Esc/Del/Ctrl+Z. WASD/QE documented for the walkthrough. Every core
+  action is in the overlay.
+- **Duplicate a level** (`duplicateLevel`) — clones rooms/walls/openings/furniture/fixtures/runs/
+  mergedPairs with fresh ids, remapping opening→room/wall and run→fixture references; button in
+  the Level inspector. The fast second storey.
+- **Empty states** (`EmptyHint`): a blank plot says "Set your lot size, then place your first
+  room" (+ shortcut hint); empty Site says what to place.
+- `verify-phase10.mjs`: duplicate copies everything with new ids, openings re-point at the NEW
+  rooms, original untouched. All PASS. Build clean; full `npm run verify` green (14 suites).
+
+**Acceptance:** every core action has a shortcut and is in the `?` overlay ✓; duplicate level
+carries rooms + openings ✓.
+
+**Merged to `main`** — Phases 0–10 + furnishings + electrical all shipped to production.

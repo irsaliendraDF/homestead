@@ -26,6 +26,8 @@ export const useEditor = create((set) => ({
   showCeilings3d: false, // ceiling planes (off by default so you can see in)
   showRoof3d: true, // roof massing on/off
   walk: false, // first-person walkthrough (only in 3D)
+  showShortcuts: false, // the ? keyboard-shortcuts overlay
+  fitTick: 0, // bump to ask the plan canvas to zoom-to-fit
   selectedId: null, // selected room
   selectedWallId: null, // selected freestanding wall
   selectedOpeningId: null, // selected opening
@@ -85,6 +87,8 @@ export const useEditor = create((set) => ({
   toggleCeilings3d: () => set((s) => ({ showCeilings3d: !s.showCeilings3d })),
   toggleRoof3d: () => set((s) => ({ showRoof3d: !s.showRoof3d })),
   setWalk: (walk) => set({ walk }),
+  toggleShortcuts: () => set((s) => ({ showShortcuts: !s.showShortcuts })),
+  requestFit: () => set((s) => ({ fitTick: s.fitTick + 1 })),
 
   select: (selectedId) => set({ ...CLEAR, selectedId }),
   selectWall: (selectedWallId) => set({ ...CLEAR, selectedWallId }),

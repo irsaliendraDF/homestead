@@ -1,9 +1,11 @@
 import { useEffect, useRef, lazy, Suspense } from 'react'
 import { useStore } from 'zustand'
-import { Undo2, Redo2 } from 'lucide-react'
+import { Undo2, Redo2, HelpCircle } from 'lucide-react'
 import { useProject } from './store/useProject.js'
 import { useEditor } from './store/useEditor.js'
+import { useViewport } from './store/useViewport.js'
 import { useSession, initSession } from './store/session.js'
+import ShortcutsOverlay from './components/ShortcutsOverlay.jsx'
 import { REGION } from './config.js'
 import PlanCanvas from './components/PlanCanvas.jsx'
 import MeasurementRail from './components/MeasurementRail.jsx'
@@ -13,6 +15,7 @@ import Inspector from './components/Inspector.jsx'
 import ToolRail from './components/ToolRail.jsx'
 import RoomLabels from './components/RoomLabels.jsx'
 import DragDimensions from './components/DragDimensions.jsx'
+import EmptyHint from './components/EmptyHint.jsx'
 import ViewToggle from './components/ViewToggle.jsx'
 import SiteToggle from './components/SiteToggle.jsx'
 import Controls3D from './components/Controls3D.jsx'
@@ -54,7 +57,24 @@ export default function App() {
         return
       }
       // View + tool + selection shortcuts (no modifier).
-      if (e.key === '3') {
+      if (e.key === '?') {
+        useEditor.getState().toggleShortcuts()
+      } else if (e.key === '[' || e.key === ']') {
+        const p = useProject.getState().project
+        const cur = p.levels.find((l) => l.id === p.view.activeLevelId)
+        const dir = e.key === ']' ? 1 : -1
+        const target = p.levels
+          .filter((l) => (dir > 0 ? l.index > cur.index : l.index < cur.index))
+          .sort((a, b) => (dir > 0 ? a.index - b.index : b.index - a.index))[0]
+        if (target) useProject.getState().setActiveLevel(target.id)
+      } else if (e.key === 'f' || e.key === 'F') {
+        useEditor.getState().requestFit()
+      } else if (e.key === 'g' || e.key === 'G') {
+        useViewport.getState().toggleGrid()
+      } else if (e.key === 'l' || e.key === 'L') {
+        const ed = useEditor.getState()
+        if (ed.viewMode === 'plan') ed.setCanvasMode(ed.canvasMode === 'landscape' ? 'building' : 'landscape')
+      } else if (e.key === '3') {
         const m = useEditor.getState().viewMode
         useEditor.getState().setViewMode(m === '3d' ? 'plan' : '3d')
       } else if (e.key === 'r' || e.key === 'R') {
@@ -80,7 +100,8 @@ export default function App() {
       else if (e.key === 'v' || e.key === 'V') useEditor.getState().setTool('select')
       else if (e.key === 'Escape') {
         const ed = useEditor.getState()
-        if (ed.runDraft) ed.cancelRun()
+        if (ed.showShortcuts) ed.toggleShortcuts()
+        else if (ed.runDraft) ed.cancelRun()
         else if (ed.pendingFixture) ed.disarmFixture()
         else if (ed.pendingFurniture) ed.disarmFurniture()
         else if (ed.pendingLandscape) ed.disarmLandscape()
@@ -113,7 +134,8 @@ export default function App() {
   }, [])
 
   return (
-    <div className="flex h-full flex-col bg-canvas text-ink">
+    <div className="relative flex h-full flex-col bg-canvas text-ink">
+      <ShortcutsOverlay />
       {/* Title bar */}
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-panel px-4">
         <div className="flex items-baseline gap-3">
@@ -124,6 +146,15 @@ export default function App() {
           {ready && viewMode === 'plan' && <SiteToggle />}
           {ready && <ViewToggle />}
           <div className="flex items-center gap-1">
+          <button
+            type="button"
+            aria-label="Keyboard shortcuts"
+            title="Keyboard shortcuts (?)"
+            onClick={() => useEditor.getState().toggleShortcuts()}
+            className="rounded p-1.5 text-muted hover:bg-accentSoft hover:text-ink"
+          >
+            <HelpCircle size={16} strokeWidth={1.75} />
+          </button>
           <button
             type="button"
             aria-label="Undo"
@@ -173,6 +204,7 @@ export default function App() {
                 ) : (
                   <>
                     <PlanCanvas />
+                    <EmptyHint />
                     <RoomLabels />
                     <DragDimensions />
                     <MeasurementRail />

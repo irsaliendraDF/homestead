@@ -825,6 +825,13 @@ export default function Inspector() {
             />
             Show level below as ghost
           </label>
+          <button
+            type="button"
+            onClick={() => useProject.getState().duplicateLevel(active.id)}
+            className="flex items-center justify-center gap-1.5 rounded border border-line px-2 py-1.5 text-xs text-ink hover:bg-accentSoft"
+          >
+            <Copy size={14} strokeWidth={1.75} /> Duplicate this level
+          </button>
         </Section>
       )}
 
